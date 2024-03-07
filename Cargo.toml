@@ -1,0 +1,27 @@
+[package]
+name = "rpc-router"
+version = "0.0.1"
+authors = ["Jeremy Chone <jeremy.chone@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Rust implementation for Model Query Language support"
+keywords = [
+	"rpc",
+	"json-rpc",
+]
+homepage = "https://github.com/jeremychone/rust-rpc-router"
+repository = "https://github.com/jeremychone/rust-rpc-router"
+
+
+[lints.rust]
+unsafe_code = "forbid"
+# unused = "allow" # For experimental dev.
+
+[dependencies]
+# -- Async
+futures = "0.3"
+# -- Json
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_with = "3"
+
