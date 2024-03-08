@@ -1,32 +1,21 @@
-#[macro_export]
-macro_rules! impl_all_rpc_handlers {
-	() => {
-		rpc_router::impl_rpc_handler_pair!(RpcResources,);
-		rpc_router::impl_rpc_handler_pair!(RpcResources, T1);
-		rpc_router::impl_rpc_handler_pair!(RpcResources, T1, T2);
-		rpc_router::impl_rpc_handler_pair!(RpcResources, T1, T2, T3);
-		rpc_router::impl_rpc_handler_pair!(RpcResources, T1, T2, T3, T4);
-		rpc_router::impl_rpc_handler_pair!(RpcResources, T1, T2, T3, T4, T5);
-	};
-}
+use crate::RpcResources;
 
-/// Macro generatring the RpcHandler implementations for zero or more FromResources with the last argument being IntoParams
-/// and one with not last IntoParams argument.
+/// Macro generatring the RpcHandler implementations for zero or more FromRpcResources with the last argument being IntoRpcParams
+/// and one with not last IntoRpcParams argument.
 #[macro_export]
 macro_rules! impl_rpc_handler_pair {
     ($K:ty, $($T:ident),*) => {
 
-
-				// RpcHandler implementations for zero or more FromResources with the last argument being IntoParams
-        impl<F, Fut, $($T,)* P, R> rpc_router::RpcHandler<$K, ($($T,)*), (P,), R> for F
+				// RpcHandler implementations for zero or more FromRpcResources with the last argument being IntoRpcParams
+        impl<F, Fut, $($T,)* P, R> $crate::RpcHandler<$K, ($($T,)*), (P,), R> for F
         where
             F: FnOnce($($T,)* P) -> Fut + Clone + Send + 'static,
-            $( $T: rpc_router::FromResources<$K> + Send + Sync + 'static, )*
-            P: rpc_router::IntoParams + Send + Sync + 'static,
+            $( $T: $crate::FromRpcResources<$K> + Send + Sync + 'static, )*
+            P: $crate::IntoRpcParams + Send + Sync + 'static,
             R: serde::Serialize + Send + Sync + 'static,
             Fut: futures::Future<Output = $crate::Result<R>> + Send,
         {
-            type Future = rpc_router::PinFutureValue;
+            type Future = $crate::PinFutureValue;
 
 						#[allow(unused)] // somehow resources will be marked as unused
             fn call(
@@ -47,15 +36,15 @@ macro_rules! impl_rpc_handler_pair {
             }
         }
 
-				// RpcHandler implementations for zero or more FromResources and NO IntoParams
-				impl<F, Fut, $($T,)* R> rpc_router::RpcHandler<$K,($($T,)*), (), R> for F
+				// RpcHandler implementations for zero or more FromRpcResources and NO IntoRpcParams
+				impl<F, Fut, $($T,)* R> $crate::RpcHandler<$K,($($T,)*), (), R> for F
 				where
 						F: FnOnce($($T,)*) -> Fut + Clone + Send + 'static,
-						$( $T: rpc_router::FromResources<$K> + Send + Sync + 'static, )*
+						$( $T: $crate::FromRpcResources<$K> + Send + Sync + 'static, )*
 						R: serde::Serialize + Send + Sync + 'static,
 						Fut: futures::Future<Output = $crate::Result<R>> + Send,
 				{
-						type Future = rpc_router::PinFutureValue;
+						type Future = $crate::PinFutureValue;
 
 						#[allow(unused)] // somehow resources will be marked as unused
 						fn call(
@@ -75,3 +64,10 @@ macro_rules! impl_rpc_handler_pair {
     };
 
 }
+
+impl_rpc_handler_pair!(RpcResources,);
+impl_rpc_handler_pair!(RpcResources, T1);
+impl_rpc_handler_pair!(RpcResources, T1, T2);
+impl_rpc_handler_pair!(RpcResources, T1, T2, T3);
+impl_rpc_handler_pair!(RpcResources, T1, T2, T3, T4);
+impl_rpc_handler_pair!(RpcResources, T1, T2, T3, T4, T5);

@@ -1,6 +1,5 @@
+use crate::handler::{RpcHandlerWrapper, RpcHandlerWrapperTrait};
 use crate::Result;
-use crate::RpcHandlerWrapper;
-use crate::RpcHandlerWrapperTrait;
 use futures::Future;
 use serde_json::Value;
 

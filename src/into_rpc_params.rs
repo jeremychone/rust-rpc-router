@@ -7,7 +7,7 @@ use serde_json::Value;
 /// The default implementation below will result in failure if the value is `None`.
 /// For customized behavior, users can implement their own `into_params`
 /// method.
-pub trait IntoParams: DeserializeOwned + Send {
+pub trait IntoRpcParams: DeserializeOwned + Send {
 	fn into_params(value: Option<Value>) -> Result<Self> {
 		match value {
 			Some(value) => Ok(serde_json::from_value(value)?),
@@ -18,11 +18,11 @@ pub trait IntoParams: DeserializeOwned + Send {
 
 /// Marker trait with a blanket implementation that return T::default
 /// if the `params: Option<Value>` is none.
-pub trait IntoDefaultParams: DeserializeOwned + Send + Default {}
+pub trait IntoDefaultRpcParams: DeserializeOwned + Send + Default {}
 
-impl<P> IntoParams for P
+impl<P> IntoRpcParams for P
 where
-	P: IntoDefaultParams,
+	P: IntoDefaultRpcParams,
 {
 	fn into_params(value: Option<Value>) -> Result<Self> {
 		match value {

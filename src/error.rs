@@ -1,3 +1,4 @@
+use crate::FromResourcesError;
 use serde::Serialize;
 use serde_with::{serde_as, DisplayFromStr};
 
@@ -10,7 +11,17 @@ pub enum Error {
 	RpcMethodUnknown(String),
 	RpcIntoParamsMissing,
 
+	// -- FromResources
+	FromResources(FromResourcesError),
+
+	// -- Others
 	SerdeJson(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
+}
+
+impl From<FromResourcesError> for Error {
+	fn from(val: FromResourcesError) -> Self {
+		Self::FromResources(val)
+	}
 }
 
 impl From<serde_json::Error> for Error {
