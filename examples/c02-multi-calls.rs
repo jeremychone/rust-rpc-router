@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 	let rpc_router = rpc_router_base.clone();
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
-		let rr = RpcResourcesBuilder::default().insert(ModelManager).build();
+		let rr = RpcResourcesBuilder::default().insert(ModelManager).build_owned();
 		let params = json!({"id": 123});
 
 		rpc_router.call("get_task", rr, Some(params)).await
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
 	let rpc_router = rpc_router_base.clone();
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
-		let rr = RpcResourcesBuilder::default().insert(ModelManager).build();
+		let rr = RpcResourcesBuilder::default().insert(ModelManager).build_owned();
 		let params = json!({"id": 123});
 
 		rpc_router.call("get_task", rr, Some(params)).await
