@@ -1,7 +1,7 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcResources, RpcRouter};
+use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcResources, RpcResourcesBuilder, RpcRouter};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 	let rpc_router = rpc_router_base.clone();
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
-		let rr = RpcResources::default().insert(ModelManager);
+		let rr = RpcResourcesBuilder::default().insert(ModelManager).build();
 		let params = json!({"id": 123});
 
 		rpc_router.call("get_task", rr, Some(params)).await
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
 	let rpc_router = rpc_router_base.clone();
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
-		let rr = RpcResources::default().insert(ModelManager);
+		let rr = RpcResourcesBuilder::default().insert(ModelManager).build();
 		let params = json!({"id": 123});
 
 		rpc_router.call("get_task", rr, Some(params)).await
