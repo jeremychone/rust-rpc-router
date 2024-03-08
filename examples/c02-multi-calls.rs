@@ -10,7 +10,7 @@ use tokio::task::JoinSet;
 #[derive(Clone)]
 pub struct ModelManager;
 
-impl FromRpcResources<RpcResources> for ModelManager {
+impl FromRpcResources for ModelManager {
 	fn from_resources(rpc_resources: &RpcResources) -> rpc_router::FromResourcesResult<Self> {
 		Ok(rpc_resources.get::<ModelManager>().unwrap())
 	}
@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
 	println!("Hello, world!");
 
 	// -- router
-	let mut rpc_router: RpcRouter<RpcResources> = RpcRouter::new();
+	let mut rpc_router: RpcRouter = RpcRouter::new();
 	rpc_router = rpc_router.add_dyn("get_task", get_task.into_dyn());
 	let rpc_router_base = Arc::new(rpc_router);
 

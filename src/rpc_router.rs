@@ -1,5 +1,5 @@
 use crate::handler::RpcHandlerWrapperTrait;
-use crate::{Error, Result, RpcHandler};
+use crate::{Error, Result, RpcHandler, RpcResources};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -7,11 +7,11 @@ use std::fmt;
 /// method, which calls the appropriate handler matching the method_name.
 ///
 /// RpcRouter can be extended with other RpcRouters for composability.
-pub struct RpcRouter<K> {
-	route_by_name: HashMap<&'static str, Box<dyn RpcHandlerWrapperTrait<K>>>,
+pub struct RpcRouter {
+	route_by_name: HashMap<&'static str, Box<dyn RpcHandlerWrapperTrait>>,
 }
 
-impl<K> fmt::Debug for RpcRouter<K> {
+impl fmt::Debug for RpcRouter {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("RpcRouter")
 			.field("route_by_name", &self.route_by_name.keys())
@@ -19,10 +19,7 @@ impl<K> fmt::Debug for RpcRouter<K> {
 	}
 }
 
-impl<K> RpcRouter<K>
-where
-	K: Send + Sync + 'static,
-{
+impl RpcRouter {
 	#[allow(clippy::new_without_default)] // Persosnal preference (for this case)
 	pub fn new() -> Self {
 		Self {
@@ -40,7 +37,7 @@ where
 	///       avoids monomorphization of the add function.
 	///       The RpcRouter also has a `.add()` as a convenience function to just pass the function.
 	///       See `RpcRouter::add` for more details.
-	pub fn add_dyn(mut self, name: &'static str, dyn_handler: Box<dyn RpcHandlerWrapperTrait<K>>) -> Self {
+	pub fn add_dyn(mut self, name: &'static str, dyn_handler: Box<dyn RpcHandlerWrapperTrait>) -> Self {
 		self.route_by_name.insert(name, dyn_handler);
 		self
 	}
@@ -56,8 +53,7 @@ where
 	///       for each type passed. Use `RpcRouter::add_dyn` to avoid this.
 	pub fn add<F, T, P, R>(self, name: &'static str, handler: F) -> Self
 	where
-		F: RpcHandler<K, T, P, R> + Clone + Send + Sync + 'static,
-		K: Send + Sync + 'static,
+		F: RpcHandler<T, P, R> + Clone + Send + Sync + 'static,
 		T: Send + Sync + 'static,
 		P: Send + Sync + 'static,
 		R: Send + Sync + 'static,
@@ -65,12 +61,12 @@ where
 		self.add_dyn(name, handler.into_dyn())
 	}
 
-	pub fn extend(mut self, other_router: RpcRouter<K>) -> Self {
+	pub fn extend(mut self, other_router: RpcRouter) -> Self {
 		self.route_by_name.extend(other_router.route_by_name);
 		self
 	}
 
-	pub async fn call(&self, method: &str, rpc_resources: K, params: Option<Value>) -> Result<Value> {
+	pub async fn call(&self, method: &str, rpc_resources: RpcResources, params: Option<Value>) -> Result<Value> {
 		if let Some(route) = self.route_by_name.get(method) {
 			route.call(rpc_resources, params).await
 		} else {

@@ -8,7 +8,7 @@ use serde_json::json;
 #[derive(Clone)]
 pub struct ModelManager;
 
-impl FromRpcResources<RpcResources> for ModelManager {
+impl FromRpcResources for ModelManager {
 	fn from_resources(rpc_resources: &RpcResources) -> rpc_router::FromResourcesResult<Self> {
 		Ok(rpc_resources.get::<ModelManager>().unwrap())
 	}
@@ -28,7 +28,7 @@ pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> rpc_router::Resu
 async fn main() -> Result<()> {
 	println!("Hello, world!");
 
-	let mut rpc_router: RpcRouter<RpcResources> = RpcRouter::new();
+	let mut rpc_router: RpcRouter = RpcRouter::new();
 
 	rpc_router = rpc_router.add_dyn("get_task", get_task.into_dyn());
 

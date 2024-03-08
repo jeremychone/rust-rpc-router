@@ -7,10 +7,10 @@ macro_rules! impl_rpc_handler_pair {
     ($K:ty, $($T:ident),*) => {
 
 				// RpcHandler implementations for zero or more FromRpcResources with the last argument being IntoRpcParams
-        impl<F, Fut, $($T,)* P, R> $crate::RpcHandler<$K, ($($T,)*), (P,), R> for F
+        impl<F, Fut, $($T,)* P, R> $crate::RpcHandler<($($T,)*), (P,), R> for F
         where
             F: FnOnce($($T,)* P) -> Fut + Clone + Send + 'static,
-            $( $T: $crate::FromRpcResources<$K> + Send + Sync + 'static, )*
+            $( $T: $crate::FromRpcResources+ Send + Sync + 'static, )*
             P: $crate::IntoRpcParams + Send + Sync + 'static,
             R: serde::Serialize + Send + Sync + 'static,
             Fut: futures::Future<Output = $crate::Result<R>> + Send,
@@ -20,7 +20,7 @@ macro_rules! impl_rpc_handler_pair {
 						#[allow(unused)] // somehow resources will be marked as unused
             fn call(
                 self,
-                resources: $K,
+                resources: RpcResources,
                 params_value: Option<serde_json::Value>,
             ) -> Self::Future {
                 Box::pin(async move {
@@ -37,10 +37,10 @@ macro_rules! impl_rpc_handler_pair {
         }
 
 				// RpcHandler implementations for zero or more FromRpcResources and NO IntoRpcParams
-				impl<F, Fut, $($T,)* R> $crate::RpcHandler<$K,($($T,)*), (), R> for F
+				impl<F, Fut, $($T,)* R> $crate::RpcHandler<($($T,)*), (), R> for F
 				where
 						F: FnOnce($($T,)*) -> Fut + Clone + Send + 'static,
-						$( $T: $crate::FromRpcResources<$K> + Send + Sync + 'static, )*
+						$( $T: $crate::FromRpcResources + Send + Sync + 'static, )*
 						R: serde::Serialize + Send + Sync + 'static,
 						Fut: futures::Future<Output = $crate::Result<R>> + Send,
 				{
@@ -49,7 +49,7 @@ macro_rules! impl_rpc_handler_pair {
 						#[allow(unused)] // somehow resources will be marked as unused
 						fn call(
 								self,
-								resources: $K,
+								resources: RpcResources,
 								_params: Option<serde_json::Value>,
 						) -> Self::Future {
 								Box::pin(async move {

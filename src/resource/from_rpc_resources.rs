@@ -1,8 +1,9 @@
+use crate::RpcResources;
 use serde::Serialize;
 use std::any::type_name;
 
-pub trait FromRpcResources<K> {
-	fn from_resources(rpc_resources: &K) -> FromResourcesResult<Self>
+pub trait FromRpcResources {
+	fn from_resources(rpc_resources: &RpcResources) -> FromResourcesResult<Self>
 	where
 		Self: Sized;
 }

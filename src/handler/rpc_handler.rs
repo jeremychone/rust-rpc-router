@@ -1,5 +1,5 @@
 use crate::handler::{RpcHandlerWrapper, RpcHandlerWrapperTrait};
-use crate::Result;
+use crate::{Result, RpcResources};
 use futures::Future;
 use serde_json::Value;
 
@@ -16,9 +16,8 @@ use serde_json::Value;
 /// - `T` is the tuple of `impl FromResources` arguments.
 /// - `P` is the `impl IntoParams` argument.
 ///
-pub trait RpcHandler<K, T, P, R>: Clone
+pub trait RpcHandler<T, P, R>: Clone
 where
-	K: Send + Sync + 'static,
 	T: Send + Sync + 'static,
 	P: Send + Sync + 'static,
 	R: Send + Sync + 'static,
@@ -27,14 +26,14 @@ where
 	type Future: Future<Output = Result<Value>> + Send + 'static;
 
 	/// Call the handler.
-	fn call(self, rpc_resources: K, params: Option<Value>) -> Self::Future;
+	fn call(self, rpc_resources: RpcResources, params: Option<Value>) -> Self::Future;
 
 	/// Convert this RpcHandler into a Boxed dyn RpcHandlerWrapperTrait,
 	/// for dynamic dispatch by the Router.
-	fn into_dyn(self) -> Box<dyn RpcHandlerWrapperTrait<K>>
+	fn into_dyn(self) -> Box<dyn RpcHandlerWrapperTrait>
 	where
 		Self: Sized + Send + Sync + 'static,
 	{
-		Box::new(RpcHandlerWrapper::new(self)) as Box<dyn RpcHandlerWrapperTrait<K>>
+		Box::new(RpcHandlerWrapper::new(self)) as Box<dyn RpcHandlerWrapperTrait>
 	}
 }
