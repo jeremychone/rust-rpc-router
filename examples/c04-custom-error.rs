@@ -1,11 +1,28 @@
-pub type Result<T> = core::result::Result<T, Error>;
-pub type Error = Box<dyn std::error::Error>; // For early dev.
-
-use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcResourcesBuilder, RpcRouter};
+use rpc_router::{FromRpcResources, IntoRpcHandlerError, IntoRpcParams, RpcHandler, RpcResourcesBuilder, RpcRouter};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::task::JoinSet;
+
+// region:    --- Custom Error
+
+pub type Result<T> = core::result::Result<T, Error>;
+
+#[derive(Debug)]
+pub enum Error {
+	// TBC
+}
+impl IntoRpcHandlerError for Error {}
+
+impl core::fmt::Display for Error {
+	fn fmt(&self, fmt: &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error> {
+		write!(fmt, "{self:?}")
+	}
+}
+
+impl std::error::Error for Error {}
+
+// endregion: --- Custom Error
 
 #[derive(Clone)]
 pub struct ModelManager;
@@ -17,7 +34,7 @@ pub struct ParamsIded {
 }
 impl IntoRpcParams for ParamsIded {}
 
-pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> rpc_router::RpcHandlerResult<i64> {
+pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> Result<i64> {
 	Ok(params.id + 9000)
 }
 
@@ -29,25 +46,27 @@ async fn main() -> Result<()> {
 	let mut rpc_router: RpcRouter = RpcRouter::new();
 	rpc_router = rpc_router.add_dyn("get_task", get_task.into_dyn());
 	let rpc_router_base = Arc::new(rpc_router);
+	let rpc_resources_base = RpcResourcesBuilder::default().insert(ModelManager).build_shared();
 
 	let mut joinset = JoinSet::new();
 
 	let rpc_router = rpc_router_base.clone();
+	let rpc_resources = rpc_resources_base.clone();
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
-		let rr = RpcResourcesBuilder::default().insert(ModelManager).build_owned();
+
 		let params = json!({"id": 123});
 
-		rpc_router.call("get_task", rr, Some(params)).await
+		rpc_router.call("get_task", rpc_resources, Some(params)).await
 	});
 
 	let rpc_router = rpc_router_base.clone();
+	let rpc_resources = rpc_resources_base.clone();
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
-		let rr = RpcResourcesBuilder::default().insert(ModelManager).build_owned();
 		let params = json!({"id": 123});
 
-		rpc_router.call("get_task", rr, Some(params)).await
+		rpc_router.call("get_task", rpc_resources, Some(params)).await
 	});
 
 	// Wait for all tasks to finish

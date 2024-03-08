@@ -1,7 +1,6 @@
-pub type Result<T> = core::result::Result<T, Error>;
-pub type Error = Box<dyn std::error::Error>; // For early dev.
+pub type Result<T> = core::result::Result<T, RpcHandlerError>;
 
-use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcResourcesBuilder, RpcRouter};
+use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcHandlerError, RpcResourcesBuilder, RpcRouter};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -17,7 +16,7 @@ pub struct ParamsIded {
 }
 impl IntoRpcParams for ParamsIded {}
 
-pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> rpc_router::Result<i64> {
+pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> Result<i64> {
 	Ok(params.id + 9000)
 }
 
@@ -35,6 +34,7 @@ async fn main() -> Result<()> {
 
 	let rpc_router = rpc_router_base.clone();
 	let rpc_resources = rpc_resources_base.clone();
+
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
 
@@ -45,6 +45,7 @@ async fn main() -> Result<()> {
 
 	let rpc_router = rpc_router_base.clone();
 	let rpc_resources = rpc_resources_base.clone();
+
 	joinset.spawn(async move {
 		let rpc_router = rpc_router.clone();
 		let params = json!({"id": 123});

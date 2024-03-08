@@ -1,7 +1,7 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcResourcesBuilder, RpcRouter};
+use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcHandlerResult, RpcResourcesBuilder, RpcRouter};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -15,7 +15,7 @@ pub struct ParamsIded {
 }
 impl IntoRpcParams for ParamsIded {}
 
-pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> rpc_router::Result<i64> {
+pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> RpcHandlerResult<i64> {
 	Ok(params.id + 9000)
 }
 

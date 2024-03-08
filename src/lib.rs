@@ -36,16 +36,10 @@ mod rpc_router;
 
 // -- Flatten
 pub use self::error::{Error, Result};
-pub use handler::RpcHandler;
+pub use handler::{IntoRpcHandlerError, RpcHandler, RpcHandlerError, RpcHandlerResult};
 pub use into_rpc_params::{IntoDefaultRpcParams, IntoRpcParams};
 pub use resource::*;
 pub use rpc_request::*;
 pub use rpc_router::*;
 
-use futures::Future;
-use serde_json::Value;
-use std::pin::Pin;
-
 // endregion: --- Modules
-
-pub type PinFutureValue = Pin<Box<dyn Future<Output = Result<Value>> + Send>>;

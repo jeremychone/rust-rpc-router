@@ -15,7 +15,7 @@ repository = "https://github.com/jeremychone/rust-rpc-router"
 
 [lints.rust]
 unsafe_code = "forbid"
-# unused = "allow" # For experimental dev.
+unused = "allow" # For experimental dev.
 
 [dependencies]
 # -- Async

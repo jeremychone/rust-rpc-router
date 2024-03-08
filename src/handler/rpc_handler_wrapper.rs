@@ -1,4 +1,5 @@
-use crate::{PinFutureValue, RpcHandler};
+use crate::handler::PinFutureValue;
+use crate::RpcHandler;
 use crate::{Result, RpcResources};
 use futures::Future;
 use serde_json::Value;
