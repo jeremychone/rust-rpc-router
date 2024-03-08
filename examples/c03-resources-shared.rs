@@ -1,9 +1,7 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{
-	FromResourcesError, FromRpcResources, IntoRpcParams, RpcHandler, RpcResources, RpcResourcesBuilder, RpcRouter,
-};
+use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcResourcesBuilder, RpcRouter};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -11,14 +9,7 @@ use tokio::task::JoinSet;
 
 #[derive(Clone)]
 pub struct ModelManager;
-
-impl FromRpcResources for ModelManager {
-	fn from_resources(rpc_resources: &RpcResources) -> rpc_router::FromResourcesResult<Self> {
-		rpc_resources
-			.get::<ModelManager>()
-			.ok_or_else(FromResourcesError::resource_not_found::<Self>)
-	}
-}
+impl FromRpcResources for ModelManager {}
 
 #[derive(Deserialize)]
 pub struct ParamsIded {

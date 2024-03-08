@@ -5,7 +5,12 @@ use std::any::type_name;
 pub trait FromRpcResources {
 	fn from_resources(rpc_resources: &RpcResources) -> FromResourcesResult<Self>
 	where
-		Self: Sized;
+		Self: Sized + Clone + Send + Sync + 'static,
+	{
+		rpc_resources
+			.get::<Self>()
+			.ok_or_else(FromResourcesError::resource_not_found::<Self>)
+	}
 }
 
 // region:    --- Error
