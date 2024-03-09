@@ -1,27 +1,27 @@
-use crate::RpcResources;
+use crate::Resources;
 use serde::Serialize;
 use std::any::type_name;
 
-pub trait FromRpcResources {
-	fn from_resources(rpc_resources: &RpcResources) -> FromResourcesResult<Self>
+pub trait FromResources {
+	fn from_resources(resources: &Resources) -> FromResourcesResult<Self>
 	where
 		Self: Sized + Clone + Send + Sync + 'static,
 	{
-		rpc_resources
+		resources
 			.get::<Self>()
 			.ok_or_else(FromResourcesError::resource_not_found::<Self>)
 	}
 }
 
-/// Implements `FromRpcResources` to allow requesting Option<T>
-/// when T implements FromRpcResources.
-impl<T> FromRpcResources for Option<T>
+/// Implements `FromResources` to allow requesting Option<T>
+/// when T implements FromResources.
+impl<T> FromResources for Option<T>
 where
-	T: FromRpcResources,
+	T: FromResources,
 	T: Sized + Clone + Send + Sync + 'static,
 {
-	fn from_resources(rpc_resources: &RpcResources) -> FromResourcesResult<Self> {
-		Ok(rpc_resources.get::<T>())
+	fn from_resources(resources: &Resources) -> FromResourcesResult<Self> {
+		Ok(resources.get::<T>())
 	}
 }
 

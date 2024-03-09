@@ -10,7 +10,7 @@ pub fn drive_rpc_handler_error_inner(input: TokenStream) -> TokenStream {
 	let name = input.ident; // Gets the identifier of the enum/struct
 	let expanded = quote! {
 		// Generate the trait implementation
-		impl rpc_router::IntoRpcHandlerError for #name {}
+		impl rpc_router::IntoHandlerError for #name {}
 	};
 
 	// Convert back to a token stream and return it

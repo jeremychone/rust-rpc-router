@@ -1,35 +1,55 @@
-pub type Result<T> = core::result::Result<T, Error>;
-pub type Error = Box<dyn std::error::Error>; // For early dev.
-
-use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcHandlerResult, RpcResourcesBuilder, RpcRouter};
+use rpc_router::{FromResources, Handler, HandlerResult, IntoParams, Request, Resources, Router};
 use serde::Deserialize;
 use serde_json::json;
 
 #[derive(Clone)]
-pub struct ModelManager;
-impl FromRpcResources for ModelManager {}
+pub struct ModelManager {}
+impl FromResources for ModelManager {}
 
 #[derive(Deserialize)]
 pub struct ParamsIded {
 	pub id: i64,
 }
-impl IntoRpcParams for ParamsIded {}
+impl IntoParams for ParamsIded {}
 
-pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> RpcHandlerResult<i64> {
+pub async fn increment_id(_mm: ModelManager, params: ParamsIded) -> HandlerResult<i64> {
 	Ok(params.id + 9000)
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-	let mut rpc_router: RpcRouter = RpcRouter::new();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+	// -- Build the Router with the builder
+	let rpc_router = Router::builder().append_dyn("increment_id", increment_id.into_dyn()).build();
 
-	rpc_router = rpc_router.add_dyn("get_task", get_task.into_dyn());
+	// -- Build the Resources via the builer
+	let rpc_resources = Resources::builder().append(ModelManager {}).build();
 
-	let rpc_resources = RpcResourcesBuilder::default().insert(ModelManager).build();
+	// -- Build the reqeust
+	let rpc_request: Request = json!({
+		"jsonrpc": "2.0",
+		"id": null, // the json rpc id, that will get echoed back, can be null
+		"method": "increment_id",
+		"params": {
+			"id": 123
+		}
+	})
+	.try_into()?;
 
-	let res = rpc_router.call("get_task", rpc_resources, json!({"id": 123}).try_into()?).await;
+	// -- Execute
+	let call_result = rpc_router.call(rpc_resources, rpc_request).await;
 
-	println!("res: {res:?}");
+	// -- Display result
+	match call_result {
+		Ok(call_response) => println!(
+			"Success: rpc-id {:?}, method: {}, returned value: {:?}",
+			call_response.id, call_response.method, call_response.value
+		),
+		Err(call_error) => println!(
+			"Error: rpc-id {:?}, method: {}, error {:?}",
+			call_error.id, call_error.method, call_error.error
+		),
+		// To extract app error type, see code below (examples/c00-readme.md)
+	}
 
 	Ok(())
 }

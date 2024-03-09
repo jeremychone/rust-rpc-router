@@ -1,50 +1,58 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{FromRpcResources, IntoRpcParams, RpcHandler, RpcResourcesBuilder, RpcRouter};
+use rpc_router::{FromResources, Handler, IntoParams, Request, Resources, Router};
 use serde::Deserialize;
 use serde_json::json;
-use std::sync::Arc;
 use tokio::task::JoinSet;
 
 #[derive(Clone)]
 pub struct ModelManager;
-impl FromRpcResources for ModelManager {}
+impl FromResources for ModelManager {}
 
 #[derive(Deserialize)]
 pub struct ParamsIded {
 	pub id: i64,
 }
-impl IntoRpcParams for ParamsIded {}
+impl IntoParams for ParamsIded {}
 
-pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> rpc_router::RpcHandlerResult<i64> {
+pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> rpc_router::HandlerResult<i64> {
 	Ok(params.id + 9000)
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
 	// -- router
-	let mut rpc_router: RpcRouter = RpcRouter::new();
-	rpc_router = rpc_router.add_dyn("get_task", get_task.into_dyn());
-	let rpc_router_base = Arc::new(rpc_router);
+	let rpc_router = Router::builder().append_dyn("get_task", get_task.into_dyn()).build();
 
 	// -- spawn calls
 	let mut joinset = JoinSet::new();
-	for _ in 0..2 {
-		let rpc_router = rpc_router_base.clone();
-		let rpc_resources = RpcResourcesBuilder::default().insert(ModelManager).build_owned();
+	for idx in 0..2 {
+		let rpc_router = rpc_router.clone();
+		let rpc_resources = Resources::builder().append(ModelManager).build();
+		let rpc_request: Request = json!({
+			"jsonrpc": "2.0",
+			"id": idx, // the json rpc id, that will get echoed back, can be null
+			"method": "get_task",
+			"params": {
+				"id": 123
+			}
+		})
+		.try_into()?;
+
 		joinset.spawn(async move {
-			let rpc_router = rpc_router.clone();
+			// Cheap way to "ensure" start spawns matches join_next order. (not for prod)
+			tokio::time::sleep(std::time::Duration::from_millis(idx as u64 * 10)).await;
 
-			let params = json!({"id": 123});
-
-			rpc_router.call("get_task", rpc_resources, Some(params)).await
+			//
+			rpc_router.call(rpc_resources, rpc_request).await
 		});
 	}
 
 	// -- print results
-	while let Some(result) = joinset.join_next().await {
-		println!("res {result:?}");
+	// Should have id: 0, and then, id: 1
+	while let Some(response) = joinset.join_next().await {
+		println!("res {response:?}");
 	}
 
 	Ok(())

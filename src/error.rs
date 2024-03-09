@@ -1,4 +1,4 @@
-use crate::{FromResourcesError, RpcHandlerError};
+use crate::{FromResourcesError, HandlerError};
 use serde::Serialize;
 use serde_with::{serde_as, DisplayFromStr};
 
@@ -7,24 +7,23 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[serde_as]
 #[derive(Debug, Serialize)]
 pub enum Error {
-	// -- RPC Router
-	RpcMethodUnknown(String),
-	RpcIntoParamsMissing,
+	// -- Into Params
+	ParamsDeserialize(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
+	ParamsMissingButRequested,
 
-	// -- FromResources
-	FromResources(FromResourcesError),
+	// -- Router
+	MethodUnknown,
 
 	// -- Handler
-	Handler(#[serde_as(as = "DisplayFromStr")] RpcHandlerError),
-
-	// -- Others
-	SerdeJson(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
+	FromResources(FromResourcesError),
+	HandlerResultSerialize(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
+	Handler(#[serde_as(as = "DisplayFromStr")] HandlerError),
 }
 
 // region:    --- Froms
 
-impl From<RpcHandlerError> for Error {
-	fn from(val: RpcHandlerError) -> Self {
+impl From<HandlerError> for Error {
+	fn from(val: HandlerError) -> Self {
 		Self::Handler(val)
 	}
 }
@@ -32,12 +31,6 @@ impl From<RpcHandlerError> for Error {
 impl From<FromResourcesError> for Error {
 	fn from(val: FromResourcesError) -> Self {
 		Self::FromResources(val)
-	}
-}
-
-impl From<serde_json::Error> for Error {
-	fn from(val: serde_json::Error) -> Self {
-		Self::SerdeJson(val)
 	}
 }
 

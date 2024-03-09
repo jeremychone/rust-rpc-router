@@ -1,11 +1,12 @@
 // region:    --- Modules
 
-mod extensions;
-mod from_rpc_resources;
-mod rpc_resources;
+mod from_resources;
+mod resources;
+mod resources_builder_macro;
+mod store;
 
 // -- Flatten
-pub use from_rpc_resources::*;
-pub use rpc_resources::*;
+pub use from_resources::*;
+pub use resources::*;
 
 // endregion: --- Modules

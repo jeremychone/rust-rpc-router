@@ -29,18 +29,18 @@
 
 mod error;
 mod handler;
-mod into_rpc_params;
+mod params;
+mod request;
 mod resource;
-mod rpc_request;
-mod rpc_router;
+mod router;
 
 // -- Flatten
 pub use self::error::{Error, Result};
-pub use handler::{IntoRpcHandlerError, RpcHandler, RpcHandlerError, RpcHandlerResult};
-pub use into_rpc_params::{IntoDefaultRpcParams, IntoRpcParams};
+pub use handler::{Handler, HandlerError, HandlerResult, IntoHandlerError};
+pub use params::*;
+pub use request::*;
 pub use resource::*;
-pub use rpc_request::*;
-pub use rpc_router::*;
+pub use router::*;
 
 // -- Export proc macros
 pub use rpc_router_macros::RpcHandlerError;

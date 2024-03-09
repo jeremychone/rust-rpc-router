@@ -1,5 +1,5 @@
 //! rpc-router Notes:
-//! - Currently, this is a copy of the `extensions.rs` from the `http@1.1.0` crate.
+//! - Currently, this is mostly copy of the `extensions.rs` from the `http@1.1.0` crate.
 //! - Only visible to `crate::resource` and encapsulated within `RpcResponses`.
 //! - Subject to future changes. Ideally, it should be a type map.
 //! - Presently, added a `_..` prefix to all unused functions.
@@ -39,17 +39,17 @@ impl Hasher for IdHasher {
 /// `Extensions` can be used by `Request` and `Response` to store
 /// extra data derived from the underlying protocol.
 #[derive(Clone, Default)]
-pub struct Extensions {
+pub(crate) struct Store {
 	// If extensions are never used, no need to carry around an empty HashMap.
 	// That's 3 words. Instead, this is only 1 word.
 	map: Option<Box<AnyMap>>,
 }
 
-impl Extensions {
+impl Store {
 	/// Create an empty `Extensions`.
 	#[inline]
-	pub fn _new() -> Extensions {
-		Extensions { map: None }
+	pub fn _new() -> Store {
+		Store { map: None }
 	}
 
 	/// Insert a type into this `Extensions`.
@@ -269,7 +269,7 @@ impl Extensions {
 	}
 }
 
-impl fmt::Debug for Extensions {
+impl fmt::Debug for Store {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Extensions").finish()
 	}
@@ -311,7 +311,7 @@ fn test_extensions() {
 	#[derive(Clone, Debug, PartialEq)]
 	struct MyType(i32);
 
-	let mut extensions = Extensions::_new();
+	let mut extensions = Store::_new();
 
 	extensions.insert(5i32);
 	extensions.insert(MyType(10));

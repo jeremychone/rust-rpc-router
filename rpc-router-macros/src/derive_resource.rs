@@ -10,7 +10,7 @@ pub fn derive_rpc_resource_inner(input: TokenStream) -> TokenStream {
 	let name = input.ident; // Gets the identifier of the enum/struct
 	let expanded = quote! {
 		// Generate the trait implementation
-		impl rpc_router::FromRpcResources for #name {}
+		impl rpc_router::FromResources for #name {}
 	};
 
 	// Convert back to a token stream and return it

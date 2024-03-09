@@ -1,14 +1,16 @@
+#![allow(clippy::module_inception)] // not publicly exposed
+
 // region:    --- Modules
 
-mod impl_rpc_handlers;
-mod rpc_handler;
-mod rpc_handler_error;
-mod rpc_handler_wrapper;
+mod handler;
+mod handler_error;
+mod handler_wrapper;
+mod impl_handlers;
 
 // -- Flatten
-pub use rpc_handler::*;
-pub use rpc_handler_error::*;
-pub use rpc_handler_wrapper::*;
+pub use handler::*;
+pub use handler_error::*;
+pub use handler_wrapper::*;
 
 use futures::Future;
 use serde_json::Value;

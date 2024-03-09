@@ -7,11 +7,11 @@ use serde_json::Value;
 /// The default implementation below will result in failure if the value is `None`.
 /// For customized behavior, users can implement their own `into_params`
 /// method.
-pub trait IntoRpcParams: DeserializeOwned + Send {
+pub trait IntoParams: DeserializeOwned + Send {
 	fn into_params(value: Option<Value>) -> Result<Self> {
 		match value {
-			Some(value) => Ok(serde_json::from_value(value)?),
-			None => Err(Error::RpcIntoParamsMissing),
+			Some(value) => Ok(serde_json::from_value(value).map_err(Error::ParamsDeserialize)?),
+			None => Err(Error::ParamsMissingButRequested),
 		}
 	}
 }
@@ -20,13 +20,13 @@ pub trait IntoRpcParams: DeserializeOwned + Send {
 /// if the `params: Option<Value>` is none.
 pub trait IntoDefaultRpcParams: DeserializeOwned + Send + Default {}
 
-impl<P> IntoRpcParams for P
+impl<P> IntoParams for P
 where
 	P: IntoDefaultRpcParams,
 {
 	fn into_params(value: Option<Value>) -> Result<Self> {
 		match value {
-			Some(value) => Ok(serde_json::from_value(value)?),
+			Some(value) => Ok(serde_json::from_value(value).map_err(Error::ParamsDeserialize)?),
 			None => Ok(Self::default()),
 		}
 	}
@@ -39,13 +39,16 @@ where
 /// Implements `IntoRpcParams` for any type that also implements `IntoRpcParams`.
 ///
 /// Note: Application code might prefer to avoid this blanket implementation.
-impl<D> IntoRpcParams for Option<D>
+impl<D> IntoParams for Option<D>
 where
 	D: DeserializeOwned + Send,
-	D: IntoRpcParams,
+	D: IntoParams,
 {
 	fn into_params(value: Option<Value>) -> Result<Self> {
-		let value = value.map(|v| serde_json::from_value(v)).transpose()?;
+		let value = value
+			.map(|v| serde_json::from_value(v))
+			.transpose()
+			.map_err(Error::ParamsDeserialize)?;
 		Ok(value)
 	}
 }
@@ -56,6 +59,6 @@ where
 ///
 /// Note: As above, this might not be a capability app code might want to
 ///       allow for rpc_handlers, prefering to have everything strongly type.
-impl IntoRpcParams for Value {}
+impl IntoParams for Value {}
 
 // endregion: --- Blanket implementation
