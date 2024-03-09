@@ -21,17 +21,15 @@ pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> RpcHandlerResult
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	println!("Hello, world!");
-
 	let mut rpc_router: RpcRouter = RpcRouter::new();
 
 	rpc_router = rpc_router.add_dyn("get_task", get_task.into_dyn());
 
-	let rr = RpcResourcesBuilder::default().insert(ModelManager).build();
+	let rpc_resources = RpcResourcesBuilder::default().insert(ModelManager).build();
 
-	let res = rpc_router.call("get_task", rr, json!({"id": 123}).try_into()?).await;
+	let res = rpc_router.call("get_task", rpc_resources, json!({"id": 123}).try_into()?).await;
 
-	println!("->> {res:?}");
+	println!("res: {res:?}");
 
 	Ok(())
 }
