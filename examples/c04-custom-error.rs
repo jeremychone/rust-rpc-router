@@ -1,5 +1,5 @@
 use rpc_router::{FromRpcResources, IntoRpcHandlerError, IntoRpcParams, RpcHandler, RpcResourcesBuilder, RpcRouter};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -8,7 +8,7 @@ use tokio::task::JoinSet;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum Error {
 	// TBC
 }

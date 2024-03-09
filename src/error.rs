@@ -1,4 +1,4 @@
-use crate::FromResourcesError;
+use crate::{FromResourcesError, RpcHandlerError};
 use serde::Serialize;
 use serde_with::{serde_as, DisplayFromStr};
 
@@ -14,8 +14,19 @@ pub enum Error {
 	// -- FromResources
 	FromResources(FromResourcesError),
 
+	// -- Handler
+	Handler(#[serde_as(as = "DisplayFromStr")] RpcHandlerError),
+
 	// -- Others
 	SerdeJson(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
+}
+
+// region:    --- Froms
+
+impl From<RpcHandlerError> for Error {
+	fn from(val: RpcHandlerError) -> Self {
+		Self::Handler(val)
+	}
 }
 
 impl From<FromResourcesError> for Error {
@@ -29,6 +40,8 @@ impl From<serde_json::Error> for Error {
 		Self::SerdeJson(val)
 	}
 }
+
+// endregion: --- Froms
 
 // region:    --- Error Boilerplate
 

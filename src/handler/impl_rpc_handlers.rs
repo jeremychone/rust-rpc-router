@@ -18,7 +18,7 @@ macro_rules! impl_rpc_handler_pair {
         {
             type Future = $crate::handler::PinFutureValue;
 
-						#[allow(unused)] // somehow resources will be marked as unused
+			#[allow(unused)] // somehow resources will be marked as unused
             fn call(
                 self,
                 resources: RpcResources,
@@ -34,7 +34,10 @@ macro_rules! impl_rpc_handler_pair {
 
                     match res {
                         Ok(result) => Ok(serde_json::to_value(result)?),
-                        Err(ex) => todo!(),
+                        Err(ex) => {
+                            let he = $crate::IntoRpcHandlerError::into_handler_error(ex);
+                            Err(he.into())
+                        },
                     }
                 })
             }
@@ -64,7 +67,10 @@ macro_rules! impl_rpc_handler_pair {
 
                             match res {
                                 Ok(result) => Ok(serde_json::to_value(result)?),
-                                Err(ex) => todo!(),
+                                Err(ex) => {
+                                    let he = $crate::IntoRpcHandlerError::into_handler_error(ex);
+                                    Err(he.into())
+                                },
                             }
 
                        })
