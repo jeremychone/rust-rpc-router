@@ -13,6 +13,18 @@ pub trait FromRpcResources {
 	}
 }
 
+/// Implements `FromRpcResources` to allow requesting Option<T>
+/// when T implements FromRpcResources.
+impl<T> FromRpcResources for Option<T>
+where
+	T: FromRpcResources,
+	T: Sized + Clone + Send + Sync + 'static,
+{
+	fn from_resources(rpc_resources: &RpcResources) -> FromResourcesResult<Self> {
+		Ok(rpc_resources.get::<T>())
+	}
+}
+
 // region:    --- Error
 
 pub type FromResourcesResult<T> = core::result::Result<T, FromResourcesError>;
