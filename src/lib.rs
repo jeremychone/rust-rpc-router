@@ -42,4 +42,9 @@ pub use resource::*;
 pub use rpc_request::*;
 pub use rpc_router::*;
 
+// -- Export proc macros
+pub use rpc_router_macros::RpcHandlerError;
+pub use rpc_router_macros::RpcParams;
+pub use rpc_router_macros::RpcResource;
+
 // endregion: --- Modules

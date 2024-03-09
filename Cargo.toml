@@ -1,6 +1,6 @@
 [package]
 name = "rpc-router"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Jeremy Chone <jeremy.chone@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -12,10 +12,15 @@ keywords = [
 homepage = "https://github.com/jeremychone/rust-rpc-router"
 repository = "https://github.com/jeremychone/rust-rpc-router"
 
-
-[lints.rust]
+[workspace.lints.rust]
 unsafe_code = "forbid"
-unused = "allow" # For experimental dev.
+# unused = "allow" # For experimental dev.
+
+[workspace]
+members = [".", "rpc-router-macros"]
+
+[features]
+default = ["rpc-router-macros"]
 
 [dependencies]
 # -- Async
@@ -24,6 +29,8 @@ futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_with = "3"
+# -- Features
+rpc-router-macros = { version="0.0.2", path = "rpc-router-macros", optional=true}
 
 [dev-dependencies]
 # -- Async
