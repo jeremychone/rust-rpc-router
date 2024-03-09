@@ -100,12 +100,12 @@ impl RpcRouter {
 macro_rules! rpc_router {
     ($($fn_name:ident),+ $(,)?) => {
         {
-					use $crate::router::{RpcHandler, RpcRouter};
-            let mut router = RpcRouter::new();
-            $(
-                router = router.add_dyn(stringify!($fn_name), $fn_name.into_dyn());
-            )+
-            router
+					use rpc_router::{RpcHandler, RpcRouter};
+					let mut router = RpcRouter::new();
+					$(
+							router = router.add_dyn(stringify!($fn_name), $fn_name.into_dyn());
+					)+
+					router
         }
     };
 }
