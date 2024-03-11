@@ -13,7 +13,15 @@ pub async fn get_task(mm: ModelManager, params: ParamsIded) -> Result<Task, MyEr
 }
 ```
 
-And to be able to call it like this:
+To be callable like this:
+
+```rust
+// Async Execute the RPC Request 
+// rpc_request = `{jsonrpc: "2.0", id: 1, method: "create_task", params: {title: "First Task"}}`
+let call_response = rpc_router.call(rpc_resources, rpc_request).await?;
+```
+
+For this, we just need to build the router, the resources, parse the JSON-RPC request, and execute the call from the router as follows:
 
 ```rust
 // Build the sharable router.
@@ -108,7 +116,7 @@ Full code [examples/c00-readme.rs](examples/c00-readme.rs)
 
 > **IMPORTANT**
 >
-> For the `0.1.x` releases, there may be some changes to types or API naming. Therefore, the version should be locked to `=0.1.0`.
+> For the `0.1.x` releases, there may be some changes to types or API naming. Therefore, the version should be locked to the latest version used, for example, `=0.1.0`. I will try to keep changes to a minimum, if any, and document them in the future _CHANGELOG.md_.
 >
 > Once `0.2.0` is released, I will adhere more strictly to the semantic versioning methodology.
 
@@ -217,5 +225,8 @@ pub enum MyError {
 
 <br />
 
-[GitHub Repo](https://github.com/jeremychone/rust-rpc-router)
-[crates-io](https://crates.io/crates/rpc-router)
+## Related links
+
+- [GitHub Repo](https://github.com/jeremychone/rust-rpc-router)
+- [crates.io](https://crates.io/crates/rpc-router)
+- [Rust10x rust-web-app](https://rust10x.com/web-app) (web-app code blueprint using [rpc-router](https://github.com/jeremychone/rust-rpc-router) with [Axum](https://github.com/tokio-rs/axum))
