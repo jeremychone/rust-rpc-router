@@ -14,17 +14,17 @@ impl Request {
 	// Will perform the `jsonrpc: "2.0"` validation.
 	// If this is not desired, using the standard `serde_json::from_value` would do the parsing
 	// and ignore `jsonrpc` property.
-	pub fn from_value(value: Value) -> Result<Request, RequestParsingError> {
+	pub fn from_value(mut value: Value) -> Result<Request, RequestParsingError> {
 		// -- validate the version
-		if let Some(jsonrpc) = value.get("jsonrpc").and_then(|v| v.as_str()) {
-			if jsonrpc != "2.0" {
-				// let value.get("id");
-				let (id, method) = take_rpc_ref(value);
-				return Err(RequestParsingError::VersionInvalid { id, method });
-			}
-		} else {
+		// assert if present
+		let Some(version) = value.get_mut("jsonrpc").map(Value::take) else {
 			let (id, method) = take_rpc_ref(value);
 			return Err(RequestParsingError::VersionMissing { id, method });
+		};
+		// asert if equal "2.0"
+		if version.as_str().unwrap_or_default() != "2.0" {
+			let (id, method) = take_rpc_ref(value);
+			return Err(RequestParsingError::VersionInvalid { id, method, version });
 		}
 
 		// -- serde json parse

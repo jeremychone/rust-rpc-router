@@ -5,8 +5,15 @@ use serde_with::{serde_as, DisplayFromStr};
 #[serde_as]
 #[derive(Debug, Serialize)]
 pub enum RequestParsingError {
-	VersionMissing { id: Option<Value>, method: Option<String> },
-	VersionInvalid { id: Option<Value>, method: Option<String> },
+	VersionMissing {
+		id: Option<Value>,
+		method: Option<String>,
+	},
+	VersionInvalid {
+		id: Option<Value>,
+		method: Option<String>,
+		version: Value,
+	},
 	Parse(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
 }
 
