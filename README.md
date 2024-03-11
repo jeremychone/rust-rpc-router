@@ -1,4 +1,4 @@
-# rpc-router - JSON-RPC routing support library
+# rpc-router - JSON-RPC routing library
 
 `rpc-router` is a [JSON-RPC](https://www.jsonrpc.org/specification) routing library in Rust for asynchronous dynamic dispatch with support for variadic arguments (up to 8 resources + 1 optional parameter). (code snippets below from: [examples/c00-readme.rs](examples/c00-readme.rs))
 
@@ -110,7 +110,7 @@ pub enum MyError {
 }
 ```
 
-By the Rust type model, these application errors are set in the `HandlerError` and need to be retrieved by `handler_error.get::<MyError>()`. See [examples/c06-error-handling.rs](examples/c06-error-handling.rs).
+By the Rust type model, these application errors are set in the `HandlerError` and need to be retrieved by `handler_error.get::<MyError>()`. See [examples/c05-error-handling.rs](examples/c05-error-handling.rs).
 
 Full code [examples/c00-readme.rs](examples/c00-readme.rs) 
 
@@ -213,7 +213,7 @@ The `FromResources` trait has a default implementation to get the `T` type (here
 Will implment the `rpc_router::IntoHandlerError` trait. 
 
 ```rust
-#[derive(Debug, Serialize, rpc_router::RpcHandlerError)]
+#[derive(Debug, Serialize, RpcHandlerError)]
 pub enum MyError {
     InvalidName,
     // ...
