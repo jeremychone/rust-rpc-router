@@ -35,7 +35,7 @@ let rpc_request: rpc_router::Request = json!({
     "jsonrpc": "2.0",
     "id": "some-client-req-id", // json-rpc request id. Can be null,num,string, but has to be present.
     "method": "create_task",
-    "params": { "title": "First task" }
+    "params": { "title": "First task" } // optional.
 }).try_into()?;
 
 // Async Execute the RPC Request.
