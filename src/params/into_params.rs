@@ -10,7 +10,7 @@ use serde_json::Value;
 pub trait IntoParams: DeserializeOwned + Send {
 	fn into_params(value: Option<Value>) -> Result<Self> {
 		match value {
-			Some(value) => Ok(serde_json::from_value(value).map_err(Error::ParamsDeserialize)?),
+			Some(value) => Ok(serde_json::from_value(value).map_err(Error::ParamsParsing)?),
 			None => Err(Error::ParamsMissingButRequested),
 		}
 	}
@@ -26,7 +26,7 @@ where
 {
 	fn into_params(value: Option<Value>) -> Result<Self> {
 		match value {
-			Some(value) => Ok(serde_json::from_value(value).map_err(Error::ParamsDeserialize)?),
+			Some(value) => Ok(serde_json::from_value(value).map_err(Error::ParamsParsing)?),
 			None => Ok(Self::default()),
 		}
 	}
@@ -48,7 +48,7 @@ where
 		let value = value
 			.map(|v| serde_json::from_value(v))
 			.transpose()
-			.map_err(Error::ParamsDeserialize)?;
+			.map_err(Error::ParamsParsing)?;
 		Ok(value)
 	}
 }

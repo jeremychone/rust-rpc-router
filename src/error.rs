@@ -8,7 +8,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug, Serialize)]
 pub enum Error {
 	// -- Into Params
-	ParamsDeserialize(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
+	ParamsParsing(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
 	ParamsMissingButRequested,
 
 	// -- Router

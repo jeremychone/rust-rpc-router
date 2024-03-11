@@ -59,9 +59,13 @@ pub async fn create_task(mm: ModelManager, aim: AiManager, params: TaskForCreate
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+	// Build the sharable router.
 	let rpc_router = router_builder![get_task, create_task].build();
+
+	// Build the sharable resources ("type map").
 	let rpc_resources = resources_builder![ModelManager {}, AiManager {}].build();
 
+	// Create and parse rpc request example.
 	let rpc_request: Request = json!({
 		"jsonrpc": "2.0",
 		"id": "some-client-req-id", // the json rpc id, that will get echoed back, can be null
@@ -72,7 +76,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	})
 	.try_into()?;
 
+	// Async Execute the RPC Request.
 	let call_response = rpc_router.call(rpc_resources, rpc_request).await?;
+
+	// Display the response.
 	let CallResponse { id, method, value } = call_response;
 	println!(
 		r#"RPC call response:
