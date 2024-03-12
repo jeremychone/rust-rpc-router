@@ -1,5 +1,5 @@
 use crate::handler::RpcHandlerWrapperTrait;
-use crate::{CallError, CallResponse, CallResult, Error, Handler, Request, Resources};
+use crate::{CallError, CallResponse, CallResult, Error, Request, Resources};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -33,25 +33,6 @@ impl RouterInner {
 	///       See `RouterInner::add` for more details.
 	pub fn append_dyn(&mut self, name: &'static str, dyn_handler: Box<dyn RpcHandlerWrapperTrait>) {
 		self.route_by_name.insert(name, dyn_handler);
-	}
-
-	/// Add an handler function to the router.
-	///
-	/// ```
-	/// RouterInner::new().add("method_name", my_handler_fn);
-	/// ```
-	///
-	/// Note: This is a convenient add function variant with generics,
-	///       and there will be monomorphed versions of this function
-	///       for each type passed. Use `RouterInner::add_dyn` to avoid this.
-	pub fn add<F, T, P, R>(&mut self, name: &'static str, handler: F)
-	where
-		F: Handler<T, P, R> + Clone + Send + Sync + 'static,
-		T: Send + Sync + 'static,
-		P: Send + Sync + 'static,
-		R: Send + Sync + 'static,
-	{
-		self.append_dyn(name, handler.into_dyn());
 	}
 
 	pub fn extend(&mut self, other_router: RouterInner) {
