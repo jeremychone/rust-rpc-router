@@ -14,6 +14,5 @@ pub use call_error::*;
 pub use call_response::*;
 pub use router::*;
 pub use router_builder::*;
-pub use router_inner::*;
 
 // endregion: --- Modules

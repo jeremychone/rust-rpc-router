@@ -70,7 +70,9 @@ async fn test_custom_error_ok() -> Result<()> {
 
 			let params = json!({"id": fx_num});
 
-			rpc_router.call_route(rpc_resources, None, "get_task", Some(params)).await
+			rpc_router
+				.call_route_with_resources(None, "get_task", Some(params), rpc_resources)
+				.await
 		});
 	}
 

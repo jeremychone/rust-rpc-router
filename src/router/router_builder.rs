@@ -1,9 +1,11 @@
 use crate::handler::RpcHandlerWrapperTrait;
-use crate::{Handler, Router, RouterInner};
+use crate::router::router_inner::RouterInner;
+use crate::{FromResources, Handler, ResourcesBuilder, ResourcesInner, Router};
 
 #[derive(Debug, Default)]
 pub struct RouterBuilder {
 	inner: RouterInner,
+	base_resources_inner: ResourcesInner,
 }
 
 impl RouterBuilder {
@@ -42,9 +44,25 @@ impl RouterBuilder {
 		self
 	}
 
+	pub fn append_resource<T>(mut self, val: T) -> Self
+	where
+		T: FromResources + Clone + Send + Sync + 'static,
+	{
+		self.base_resources_inner.insert(val);
+		self
+	}
+
+	/// Resets the router resources with the contents of this ResourcesBuilder.
+	/// Ensure to call append_resource afterwards if you want them to be included.
+	pub fn set_resources_builder(mut self, resources_builder: ResourcesBuilder) -> Self {
+		self.base_resources_inner = resources_builder.resources_inner;
+		self
+	}
+
 	/// Extends this builder by consuming another builder.
 	pub fn extend(mut self, other_builder: RouterBuilder) -> Self {
 		self.inner.extend(other_builder.inner);
+		self.base_resources_inner.extend(other_builder.base_resources_inner);
 		self
 	}
 
@@ -52,27 +70,6 @@ impl RouterBuilder {
 	/// This is the typical usage, with the `RpcRouter` being encapsulated in an `Arc`,
 	/// indicating it is designed for cloning and sharing across tasks/threads.
 	pub fn build(self) -> Router {
-		Router::from_inner(self.inner)
-	}
-
-	/// (For specific/advanced use cases, use `build()` if unsure)
-	///
-	/// Consumes this builder and returns the `RouterInner` from this builder.
-	///
-	/// Notes:
-	/// - This method is intended for advanced usage. Typically, one should use `.build()`, which returns a
-	///   `RpcRouter` containing a `RouterInner` within an `Arc`.
-	/// - However, for custom behavior, such as enclosing the `RouterInner` within a mutex,
-	///   this API facilitates such functionality.
-	pub fn into_inner(self) -> RouterInner {
-		self.inner
-	}
-
-	/// (For specific/advanced use cases, use `build()` if unsure)
-	///
-	/// Extends from a RouterInner
-	pub fn extend_inner(mut self, rpc_inner: RouterInner) -> Self {
-		self.inner.extend(rpc_inner);
-		self
+		Router::new(self.inner, self.base_resources_inner)
 	}
 }

@@ -29,8 +29,11 @@ async fn test_sync_call() -> Result<()> {
 	// -- Setup & Fixtures
 	let fx_num = 123;
 	let fx_res_value = 9123;
-	let rpc_router = Router::builder().append_dyn("get_task", get_task.into_dyn()).build();
-	let rpc_resources = Resources::builder().append(ModelManager).build();
+	let rpc_router = Router::builder()
+		.append_dyn("get_task", get_task.into_dyn())
+		.append_resource(ModelManager)
+		.build();
+
 	let rpc_request: Request = json!({
 		"jsonrpc": "2.0",
 		"id": null, // the json rpc id, that will get echoed back, can be null
@@ -42,7 +45,7 @@ async fn test_sync_call() -> Result<()> {
 	.try_into()?;
 
 	// -- Exec
-	let res = rpc_router.call(rpc_resources, rpc_request).await?;
+	let res = rpc_router.call(rpc_request).await?;
 
 	// -- Check
 	let res_value: i32 = serde_json::from_value(res.value)?;
@@ -76,7 +79,7 @@ async fn test_async_calls() -> Result<()> {
 		joinset.spawn(async move {
 			let rpc_router = rpc_router.clone();
 
-			rpc_router.call(rpc_resources, rpc_request).await
+			rpc_router.call_with_resources(rpc_request, rpc_resources).await
 		});
 	}
 
@@ -117,7 +120,9 @@ async fn test_shared_resources() -> Result<()> {
 
 			let params = json!({"id": fx_num});
 
-			rpc_router.call_route(rpc_resources, None, "get_task", Some(params)).await
+			rpc_router
+				.call_route_with_resources(None, "get_task", Some(params), rpc_resources)
+				.await
 		});
 	}
 

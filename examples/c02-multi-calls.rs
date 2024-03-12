@@ -1,14 +1,18 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{FromResources, Handler, IntoParams, Request, Resources, Router};
+use rpc_router::{Handler, IntoParams, Request, Resources, Router, RpcResource};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::task::JoinSet;
 
-#[derive(Clone)]
+#[derive(Clone, RpcResource)]
 pub struct ModelManager;
-impl FromResources for ModelManager {}
+
+#[derive(Clone, RpcResource)]
+pub struct UserCtx {
+	_user_id: i64,
+}
 
 #[derive(Deserialize)]
 pub struct ParamsIded {
@@ -16,20 +20,22 @@ pub struct ParamsIded {
 }
 impl IntoParams for ParamsIded {}
 
-pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> rpc_router::HandlerResult<i64> {
+pub async fn get_task(_ctx: UserCtx, _mm: ModelManager, params: ParamsIded) -> rpc_router::HandlerResult<i64> {
 	Ok(params.id + 9000)
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
 	// -- router
-	let rpc_router = Router::builder().append_dyn("get_task", get_task.into_dyn()).build();
+	let rpc_router = Router::builder()
+		.append_dyn("get_task", get_task.into_dyn())
+		.append_resource(ModelManager)
+		.build();
 
 	// -- spawn calls
 	let mut joinset = JoinSet::new();
 	for idx in 0..2 {
 		let rpc_router = rpc_router.clone();
-		let rpc_resources = Resources::builder().append(ModelManager).build();
 		let rpc_request: Request = json!({
 			"jsonrpc": "2.0",
 			"id": idx, // the json rpc id, that will get echoed back, can be null
@@ -44,8 +50,11 @@ async fn main() -> Result<()> {
 			// Cheap way to "ensure" start spawns matches join_next order. (not for prod)
 			tokio::time::sleep(std::time::Duration::from_millis(idx as u64 * 10)).await;
 
-			//
-			rpc_router.call(rpc_resources, rpc_request).await
+			// Build the additional resources to overlay on top of the router resources
+			let addtional_resources = Resources::builder().append(UserCtx { _user_id: 123 }).build();
+
+			// Exec the call
+			rpc_router.call_with_resources(rpc_request, addtional_resources).await
 		});
 	}
 

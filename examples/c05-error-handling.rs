@@ -1,6 +1,4 @@
-use rpc_router::{
-	router_builder, FromResources, IntoParams, Request, Resources, Router, RpcHandlerError, RpcParams, RpcResource,
-};
+use rpc_router::{router_builder, FromResources, IntoParams, Request, Router, RpcHandlerError, RpcParams, RpcResource};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::task::JoinSet;
@@ -79,13 +77,9 @@ pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> Result<Task, MyE
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// -- Build router (can be built with Router::builder().add(..))
-	let rpc_router: Router = router_builder!(create_task, get_task).build();
-
-	// -- Build resources
-	let rpc_resources: Resources = Resources::builder()
-		.append(ModelManager {})
-		.append(AiManager {})
-		// build the Arced Resources
+	let rpc_router: Router = router_builder!(create_task, get_task)
+		.append_resource(ModelManager {})
+		.append_resource(AiManager {})
 		.build();
 
 	// -- Simulate RPC request intakes (typically manage by the Web/IPC layer)
@@ -120,14 +114,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let mut joinset = JoinSet::new();
 	for (idx, rpc_request) in rpc_requests.into_iter().enumerate() {
 		let rpc_router = rpc_router.clone(); // Just Arc clone.
-		let rpc_resources = rpc_resources.clone(); // Just Arc clone.
-
 		joinset.spawn(async move {
 			// Cheap way to "ensure" start spawns matches join_next order. (not for prod)
 			tokio::time::sleep(std::time::Duration::from_millis(idx as u64 * 10)).await;
 
 			// Do the router call
-			rpc_router.call(rpc_resources, rpc_request).await
+			rpc_router.call(rpc_request).await
 		});
 	}
 

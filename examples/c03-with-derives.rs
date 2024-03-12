@@ -44,17 +44,21 @@ pub async fn get_task(_mm: ModelManager, params: ParamsIded) -> MyResult<i64> {
 async fn main() -> Result<()> {
 	// -- router & resources
 	let rpc_router = Router::builder().append_dyn("get_task", get_task.into_dyn()).build();
-	let rpc_resources = ResourcesBuilder::default().append(ModelManager {}).build();
 
 	// -- spawn calls
 	let mut joinset = JoinSet::new();
 	for _ in 0..2 {
 		let rpc_router = rpc_router.clone();
-		let rpc_resources = rpc_resources.clone();
+
+		// In this example, we show the router might not have resources, and here we rebuild each time.
+		let rpc_resources = ResourcesBuilder::default().append(ModelManager {}).build();
+
 		joinset.spawn(async move {
 			let params = json!({"id": 123});
 
-			rpc_router.call_route(rpc_resources, None, "get_task", Some(params)).await
+			rpc_router
+				.call_route_with_resources(None, "get_task", Some(params), rpc_resources)
+				.await
 		});
 	}
 

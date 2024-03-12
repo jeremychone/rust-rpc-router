@@ -59,11 +59,13 @@ pub async fn create_task(mm: ModelManager, aim: AiManager, params: TaskForCreate
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-	// Build the sharable router.
-	let rpc_router = router_builder![get_task, create_task].build();
-
-	// Build the sharable resources ("type map").
-	let rpc_resources = resources_builder![ModelManager {}, AiManager {}].build();
+	// Build the Router with the handlers and common resources
+	let rpc_router = router_builder!(
+		handlers: [get_task, create_task],         // will be turned into routes
+		resources: [ModelManager {}, AiManager {}] // common resources for all calls
+	)
+	.build();
+	// Can do the same with `Router::builder().append()/append_resource()`
 
 	// Create and parse rpc request example.
 	let rpc_request: Request = json!({
@@ -76,8 +78,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	})
 	.try_into()?;
 
-	// Async Execute the RPC Request.
-	let call_response = rpc_router.call(rpc_resources, rpc_request).await?;
+	// Async Execute the RPC Request with the router common resources
+	let call_response = rpc_router.call(rpc_request).await?;
+
+	// Or `call_with_resources` for  additional per-call Resources that override router common resources.
+	// e.g., rpc_router.call_with_resources(rpc_request, additional_resources)
 
 	// Display the response.
 	let CallResponse { id, method, value } = call_response;

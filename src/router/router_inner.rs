@@ -8,7 +8,7 @@ use std::fmt;
 ///
 /// RouterInner can be extended with other RouterInners for composability.
 #[derive(Default)]
-pub struct RouterInner {
+pub(crate) struct RouterInner {
 	route_by_name: HashMap<&'static str, Box<dyn RpcHandlerWrapperTrait>>,
 }
 

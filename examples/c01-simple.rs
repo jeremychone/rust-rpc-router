@@ -19,10 +19,10 @@ pub async fn increment_id(_mm: ModelManager, params: ParamsIded) -> HandlerResul
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// -- Build the Router with the builder
-	let rpc_router = Router::builder().append_dyn("increment_id", increment_id.into_dyn()).build();
-
-	// -- Build the Resources via the builer
-	let rpc_resources = Resources::builder().append(ModelManager {}).build();
+	let rpc_router = Router::builder()
+		// Minor optimization over `.append(...)` to avoid monomorphization
+		.append_dyn("increment_id", increment_id.into_dyn())
+		.build();
 
 	// -- Build the reqeust
 	let rpc_request: Request = json!({
@@ -35,8 +35,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	})
 	.try_into()?;
 
+	// -- Build the Resources for this call via the builer
+	let rpc_resources = Resources::builder().append(ModelManager {}).build();
+
 	// -- Execute
-	let call_result = rpc_router.call(rpc_resources, rpc_request).await;
+	let call_result = rpc_router.call_with_resources(rpc_request, rpc_resources).await;
 
 	// -- Display result
 	match call_result {

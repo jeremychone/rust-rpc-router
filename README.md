@@ -1,4 +1,4 @@
-# rpc-router - JSON-RPC routing library
+# rpc-router - json-rpc routing library
 
 `rpc-router` is a [JSON-RPC](https://www.jsonrpc.org/specification) routing library in Rust for asynchronous dynamic dispatch with support for variadic arguments (up to 8 resources + 1 optional parameter). (code snippets below from: [examples/c00-readme.rs](examples/c00-readme.rs))
 
@@ -13,22 +13,30 @@ pub async fn get_task(mm: ModelManager, params: ParamsIded) -> Result<Task, MyEr
 }
 ```
 
-To be callable like this:
+To be callable from a JSON-RPC request as follows:
 
 ```rust
+// json-rpc request comming from Axum route payload, Tauri command params, ...
+let rpc_request = json!(
+   { jsonrpc: "2.0", id: 1,          // required by json-rpc
+     method:  "create_task",         // method name (matches function name)
+     params:  {title: "First Task"}  // optional params (last function argument)
+   }).try_into()?;
+
 // Async Execute the RPC Request 
-// rpc_request = `{jsonrpc: "2.0", id: 1, method: "create_task", params: {title: "First Task"}}`
-let call_response = rpc_router.call(rpc_resources, rpc_request).await?;
+let call_response = rpc_router.call(rpc_request).await?;
 ```
 
-For this, we just need to build the router, the resources, parse the JSON-RPC request, and execute the call from the router as follows:
+For this, we just need to build the router, the resources, parse the json-rpc request, and execute the call from the router as follows:
 
 ```rust
-// Build the sharable router.
-let rpc_router    = router_builder![create_task, get_task].build();
-
-// Build the sharable resources ("type map").
-let rpc_resources = resources_builder![ModelManager {..}, AiManager {..}].build();
+// Build the Router with the handlers and common resources
+let rpc_router = router_builder!(
+    handlers: [get_task, create_task],         // will be turned into routes
+    resources: [ModelManager {}, AiManager {}] // common resources for all calls
+)
+.build();
+// Can do the same with `Router::builder().append(...)/append_resource(...)`
 
 // Create and parse rpc request example.
 let rpc_request: rpc_router::Request = json!({
@@ -40,6 +48,9 @@ let rpc_request: rpc_router::Request = json!({
 
 // Async Execute the RPC Request.
 let call_response = rpc_router.call(rpc_resources, rpc_request).await?;
+
+// Or `call_with_resources` for  additional per-call Resources that override router common resources.
+// e.g., rpc_router.call_with_resources(rpc_request, additional_resources)
 
 // Display the response.
 let CallResponse { id, method, value } = call_response;
@@ -116,9 +127,20 @@ Full code [examples/c00-readme.rs](examples/c00-readme.rs)
 
 > **IMPORTANT**
 >
-> For the `0.1.x` releases, there may be some changes to types or API naming. Therefore, the version should be locked to the latest version used, for example, `=0.1.0`. I will try to keep changes to a minimum, if any, and document them in the future _CHANGELOG.md_.
+> For the `0.1.x` releases, there may be some changes to types or API naming. Therefore, the version should be locked to the latest version used, for example, `=0.1.0`. I will try to keep changes to a minimum, if any, and document them in the future [CHANGELOG](CHANGELOG.md).
 >
 > Once `0.2.0` is released, I will adhere more strictly to the semantic versioning methodology.
+
+> Note: `v0.1.1` changes from `0.1.0`
+> - `router.call(resources, request)` was renamed to `router.call_with_resources(request, resources)`. 
+> - Now, the Router can have its own resources, enabling simpler and more efficient sharing of common resources across calls, 
+> while still allowing custom resources to be overlaid at the call level.
+> - `router.call(request)` uses just the default caller resources.
+>
+> See [CHANGELOG](CHANGELOG.md) for more information. 
+> 
+> [Rust10x rust-web-app](https://github.com/rust10x/rust-web-app) has been updated. 
+
 
 ## Concepts
 

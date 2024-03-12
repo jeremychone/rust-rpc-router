@@ -1,27 +1,33 @@
-use super::store::Store;
+use super::resources_inner::ResourcesInner;
 use std::sync::Arc;
 
 // region:    --- Builder
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct ResourcesBuilder {
-	type_map: Store,
+	pub(crate) resources_inner: ResourcesInner,
 }
 
 impl ResourcesBuilder {
 	pub fn get<T: Clone + Send + Sync + 'static>(&self) -> Option<T> {
-		self.type_map.get().cloned()
+		self.resources_inner.get().cloned()
 	}
 
 	pub fn append<T: Clone + Send + Sync + 'static>(mut self, val: T) -> Self {
-		self.type_map.insert(val);
+		self.resources_inner.insert(val);
 		self
+	}
+
+	/// Convenient append method to avoid moving out value.
+	/// Use `.append(val)` if not sure.
+	pub fn append_mut<T: Clone + Send + Sync + 'static>(&mut self, val: T) {
+		self.resources_inner.insert(val);
 	}
 
 	/// Build `Resources` with an `Arc` to enable efficient cloning without
 	/// duplicating the content (i.e., without cloning the type hashmap).
 	pub fn build(self) -> Resources {
-		Resources::new_shared(self.type_map)
+		Resources::from_base_inner(self.resources_inner)
 	}
 }
 
@@ -29,9 +35,10 @@ impl ResourcesBuilder {
 
 // region:    --- Resources
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Resources {
-	shared_store: Arc<Store>,
+	base_inner: Arc<ResourcesInner>,
+	overlay_inner: Arc<ResourcesInner>,
 }
 
 // -- Builder
@@ -46,17 +53,30 @@ impl Resources {
 // -- Public Methods
 impl Resources {
 	pub fn get<T: Clone + Send + Sync + 'static>(&self) -> Option<T> {
-		self.shared_store.get().cloned()
+		// first additional, then base
+		self.overlay_inner.get::<T>().or_else(|| self.base_inner.get::<T>()).cloned()
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.base_inner.is_empty() && self.overlay_inner.is_empty()
 	}
 }
 
 // -- Privates
-/// Note: For now, we only support the shared mode (i.e., Arc<Store>).
-///       However, eventually, we might support an owned version.
 impl Resources {
-	fn new_shared(type_map: Store) -> Self {
+	/// Build a resource from a base_inner ResourcesInner
+	/// This is called bac the ResourcesBuilder
+	pub(crate) fn from_base_inner(base_inner: ResourcesInner) -> Self {
 		Self {
-			shared_store: Arc::new(type_map),
+			base_inner: Arc::new(base_inner),
+			overlay_inner: Default::default(),
+		}
+	}
+
+	pub(crate) fn new_with_overlay(&self, overlay_resources: Resources) -> Self {
+		Self {
+			base_inner: self.base_inner.clone(),
+			overlay_inner: overlay_resources.base_inner.clone(),
 		}
 	}
 }
