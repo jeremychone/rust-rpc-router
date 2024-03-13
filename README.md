@@ -131,17 +131,6 @@ Full code [examples/c00-readme.rs](examples/c00-readme.rs)
 >
 > Once `0.2.0` is released, I will adhere more strictly to the semantic versioning methodology.
 
-> Note: `v0.1.1` changes from `0.1.0`
-> - `router.call(resources, request)` was renamed to `router.call_with_resources(request, resources)`. 
-> - Now, the Router can have its own resources, enabling simpler and more efficient sharing of common resources across calls, 
-> while still allowing custom resources to be overlaid at the call level.
-> - `router.call(request)` uses just the default caller resources.
->
-> See [CHANGELOG](CHANGELOG.md) for more information. 
-> 
-> [Rust10x rust-web-app](https://github.com/rust10x/rust-web-app) has been updated. 
-
-
 ## Concepts
 
 This library has the following main constructs:
