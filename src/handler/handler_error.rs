@@ -1,4 +1,5 @@
 use serde::{Serialize, Serializer};
+use serde_json::Value;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
@@ -10,6 +11,18 @@ type AnyMap = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 pub struct HandlerError {
 	holder: AnyMap,
 	type_name: &'static str,
+}
+
+impl HandlerError {
+	pub fn new<T>(val: T) -> HandlerError
+	where
+		T: Any + Send + Sync,
+	{
+		let mut holder = AnyMap::with_capacity(1);
+		let type_name = std::any::type_name::<T>();
+		holder.insert(TypeId::of::<T>(), Box::new(val));
+		HandlerError { holder, type_name }
+	}
 }
 
 impl HandlerError {
@@ -55,19 +68,34 @@ impl Serialize for HandlerError {
 /// to query and extract the specified application error.
 pub trait IntoHandlerError
 where
-	Self: std::error::Error + Sized + Send + Sync + 'static,
+	Self: Sized + Send + Sync + 'static,
 {
 	fn into_handler_error(self) -> HandlerError {
-		let mut holder = AnyMap::with_capacity(1);
-		let type_name = std::any::type_name::<Self>();
-		holder.insert(TypeId::of::<Self>(), Box::new(self));
-		HandlerError { holder, type_name }
+		HandlerError::new(self)
 	}
 }
 
 impl IntoHandlerError for HandlerError {
 	fn into_handler_error(self) -> HandlerError {
 		self
+	}
+}
+
+impl IntoHandlerError for String {
+	fn into_handler_error(self) -> HandlerError {
+		HandlerError::new(self)
+	}
+}
+
+impl IntoHandlerError for &'static str {
+	fn into_handler_error(self) -> HandlerError {
+		HandlerError::new(self)
+	}
+}
+
+impl IntoHandlerError for Value {
+	fn into_handler_error(self) -> HandlerError {
+		HandlerError::new(self)
 	}
 }
 
