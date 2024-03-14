@@ -4,6 +4,10 @@
 >
 > Once `0.2.0` is released, I will adhere more strictly to the semantic versioning methodology.
 
+## 2024-03-14 - `0.1.3`
+
+- `+` add `RouterBuilder::extend_resources(..)`
+- `!` rename `RouterBuilder::set_resources_builder(..)` to `RouterBuilder::set_resources(..)`
 
 ## 2024-03-13 - `0.1.2`
 
