@@ -44,6 +44,13 @@ impl RouterBuilder {
 		self
 	}
 
+	/// Extends this builder by consuming another builder.
+	pub fn extend(mut self, other_builder: RouterBuilder) -> Self {
+		self.inner.extend(other_builder.inner);
+		self.base_resources_inner.extend(other_builder.base_resources_inner);
+		self
+	}
+
 	pub fn append_resource<T>(mut self, val: T) -> Self
 	where
 		T: FromResources + Clone + Send + Sync + 'static,
@@ -52,17 +59,31 @@ impl RouterBuilder {
 		self
 	}
 
-	/// Resets the router resources with the contents of this ResourcesBuilder.
-	/// Ensure to call append_resource afterwards if you want them to be included.
-	pub fn set_resources_builder(mut self, resources_builder: ResourcesBuilder) -> Self {
-		self.base_resources_inner = resources_builder.resources_inner;
+	/// If Some, will extends the current Base Resources with the content of this resources_builder.
+	/// If None, just do nothing.
+	pub fn extend_resources(mut self, resources_builder: Option<ResourcesBuilder>) -> Self {
+		if let Some(resources_builder) = resources_builder {
+			// if self resources empty, no need to extend
+			if self.base_resources_inner.is_empty() {
+				self.base_resources_inner = resources_builder.resources_inner
+			}
+			// if not empty, we extend
+			else {
+				self.base_resources_inner.extend(resources_builder.resources_inner)
+			}
+		}
 		self
 	}
 
-	/// Extends this builder by consuming another builder.
-	pub fn extend(mut self, other_builder: RouterBuilder) -> Self {
-		self.inner.extend(other_builder.inner);
-		self.base_resources_inner.extend(other_builder.base_resources_inner);
+	/// Resets the router's resources with the contents of this ResourcesBuilder.
+	///
+	/// Ensure to call `append_resource` and/or `.extend_resources` afterwards
+	/// if they operation needs to be included.
+	///
+	/// Note: `.extend_resources(Option<ResourcesBuilder>)` is the additive function
+	///        typically used.
+	pub fn set_resources(mut self, resources_builder: ResourcesBuilder) -> Self {
+		self.base_resources_inner = resources_builder.resources_inner;
 		self
 	}
 
