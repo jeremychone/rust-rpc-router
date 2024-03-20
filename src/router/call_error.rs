@@ -3,6 +3,13 @@ use serde_json::Value;
 
 pub type CallResult = core::result::Result<CallResponse, CallError>;
 
+/// The Error type returned by `rpc_router.call...` functions.
+///  
+/// NOTE: CallResponse & CallError
+///       are not designed to be the JSON-RPC Response
+///       or Error, but to provide the necessary context
+///       to build those, as well as the useful `method name`
+///       context for tracing/login.
 #[derive(Debug)]
 pub struct CallError {
 	pub id: Value,
