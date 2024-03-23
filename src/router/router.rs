@@ -1,6 +1,6 @@
 use crate::router::router_inner::RouterInner;
-use crate::Resources;
 use crate::{CallResult, Request, ResourcesInner, RouterBuilder};
+use crate::{FromResources, Resources};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -18,6 +18,7 @@ impl Router {
 		RouterBuilder::default()
 	}
 }
+impl FromResources for Router {}
 
 // -- Methods
 impl Router {
