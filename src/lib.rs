@@ -6,7 +6,7 @@
 //! - `RpcRouter` holds the HashMap of `method_name: Box<dyn RpcHandlerWrapperTrait>`.
 //! - `RpcHandler` trait is implemented for any async function that, with
 //!   `(S1, S2, ...[impl IntoParams])`, returns `web::Result<Serialize>` where S1, S2, ... are
-//!    types that implement `FromResources` (see router/from_resources.rs and src/resources.rs).
+//!   types that implement `FromResources` (see router/from_resources.rs and src/resources.rs).
 //! - `IntoParams` is the trait to implement to instruct how to go from `Option<Value>` json-rpc params
 //!   to the handler's param types.
 //! - `IntoParams` has a default `into_params` implementation that will return an error if the params are missing.
