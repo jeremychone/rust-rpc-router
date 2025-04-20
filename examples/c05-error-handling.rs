@@ -1,4 +1,4 @@
-use rpc_router::{router_builder, FromResources, IntoParams, Request, Router, RpcHandlerError, RpcParams, RpcResource};
+use rpc_router::{FromResources, IntoParams, Request, Router, RpcHandlerError, RpcParams, RpcResource, router_builder};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::task::JoinSet;
@@ -6,10 +6,10 @@ use tokio::task::JoinSet;
 // -- Application Error
 
 // Must implement IntoHandlerError, here with RpcHandlerError derive macro
-#[derive(Debug, thiserror::Error, RpcHandlerError)]
+#[derive(Debug, derive_more::Display, RpcHandlerError)]
 pub enum MyError {
 	// TBC
-	#[error("TitleCannotBeEmpty")]
+	#[display("TitleCannotBeEmpty")]
 	TitleCannotBeEmpty,
 }
 

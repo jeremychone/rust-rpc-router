@@ -1,16 +1,16 @@
 #![allow(unused)] // For examples.
 
 use rpc_router::{
-	resources_builder, router_builder, CallResponse, FromResources, IntoParams, Request, Resources, RpcHandlerError,
-	RpcParams, RpcResource,
+	CallResponse, FromResources, IntoParams, Request, Resources, RpcHandlerError, RpcParams, RpcResource,
+	resources_builder, router_builder,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-#[derive(Debug, thiserror::Error, RpcHandlerError)]
+#[derive(Debug, derive_more::Display, RpcHandlerError)]
 pub enum MyError {
 	// TBC
-	#[error("TitleCannotBeEmpty")]
+	#[display("TitleCannotBeEmpty")]
 	TitleCannotBeEmpty,
 }
 

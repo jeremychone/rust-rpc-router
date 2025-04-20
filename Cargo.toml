@@ -42,5 +42,5 @@ rpc-router-macros = { version="0.2.0-rc", path = "rpc-router-macros", optional=t
 [dev-dependencies]
 # -- Async
 tokio = { version = "1", features = ["full"] }
-# -- for examples
-thiserror = "1"
+# -- Others
+derive_more = {version = "2", features = ["from", "display"] }
