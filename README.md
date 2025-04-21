@@ -61,7 +61,7 @@ let call_response = rpc_router.call(rpc_resources, rpc_request).await?;
 // e.g., rpc_router.call_with_resources(rpc_request, additional_resources)
 
 // Display the response.
-let CallResponse { id, method, value } = call_response;
+let CallSuccess { id, method, value } = call_response;
 println!(
 	r#"RPC call response:
 		
@@ -171,9 +171,9 @@ This library has the following main constructs:
     - This requires the application code to know which error type to extract but provides flexibility to return any Error type.
     - Typically, an application will have a few application error types for its handlers, so this ergonomic trade-off still has net positive value as it enables the use of application-specific error types.
 
-6) `CallResult` - `router.call(...)` will return a `CallResult`, which is a `Result<CallResponse, CallError>` where both include the JSON-RPC `id` and `method` name context for future processing.
+6) `CallResult` - `router.call(...)` will return a `CallResult`, which is a `Result<CallSuccess, CallError>` where both include the JSON-RPC `id` and `method` name context for future processing.
     - `CallError` contains `.error: rpc_router::Error`, which includes `rpc_router::Error::Handler(HandlerError)` in the event of a handler error.
-    - `CallResponse` contains `.value: serde_json::Value`, which is the serialized value returned by a successful handler call.
+    - `CallSuccess` contains `.value: serde_json::Value`, which is the serialized value returned by a successful handler call.
 
 ### Derive Macros
 

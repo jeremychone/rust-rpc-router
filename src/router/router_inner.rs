@@ -1,5 +1,5 @@
 use crate::handler::RpcHandlerWrapperTrait;
-use crate::{CallError, CallResponse, CallResult, Error, RpcRequest, Resources, RpcId};
+use crate::{CallError, CallResult, CallSuccess, Error, Resources, RpcId, RpcRequest};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -55,7 +55,7 @@ impl RouterInner {
 	/// -     id: The json-rpc request ID. If None, defaults to RpcId::Null.
 	/// - params: The optional json-rpc params.
 	///
-	/// Returns a CallResult, where either the success value (CallResponse) or the error (CallError)
+	/// Returns a CallResult, where either the success value (CallSuccess) or the error (CallError)
 	/// will include the original `id` and `method`.
 	pub async fn call_route(
 		&self,
@@ -68,7 +68,7 @@ impl RouterInner {
 
 		if let Some(route) = self.route_by_name.get(method.as_str()) {
 			match route.call(resources, params).await {
-				Ok(value) => Ok(CallResponse {
+				Ok(value) => Ok(CallSuccess {
 					id: id.clone(), // Clone id for the response
 					method: method.clone(),
 					value,
@@ -84,4 +84,3 @@ impl RouterInner {
 		}
 	}
 }
-

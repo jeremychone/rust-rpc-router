@@ -21,7 +21,7 @@ This document provides a detailed overview of the public APIs exposed by the `rp
   - [`RpcRequestParsingError`](#rpcrequestparsingerror)
 - [Response Handling](#response-handling)
   - [`CallResult`](#callresult)
-  - [`CallResponse`](#callresponse)
+  - [`CallSuccess`](#CallSuccess)
   - [`CallError`](#callerror)
   - [`RpcResponse`](#rpcresponse)
   - [`RpcError`](#rpcerror)
@@ -403,16 +403,16 @@ Types related to the results of router calls and standard JSON-RPC responses.
 The type alias for the `Result` returned by `Router::call` methods.
 
 ```rust
-pub type CallResult = Result<CallResponse, CallError>;
+pub type CallResult = Result<CallSuccess, CallError>;
 ```
 
-### `CallResponse`
+### `CallSuccess`
 
 Represents a successful result from a `Router::call`.
 
 ```rust
 #[derive(Debug, Clone)]
-pub struct CallResponse {
+pub struct CallSuccess {
     pub id: RpcId,
     pub method: String,
     pub value: Value, // The JSON-serialized return value from the handler
@@ -461,7 +461,7 @@ impl RpcResponse {
 }
 
 // Conversion from router results
-impl From<CallResponse> for RpcResponse;
+impl From<CallSuccess> for RpcResponse;
 impl From<CallError> for RpcResponse;
 impl From<CallResult> for RpcResponse;
 ```
@@ -469,7 +469,7 @@ impl From<CallResult> for RpcResponse;
 - **Standard:** Conforms to the JSON-RPC 2.0 specification for response objects.
 - **Serialization:** Serializes to the correct JSON-RPC format (including `jsonrpc: "2.0"`).
 - **Deserialization:** Parses JSON into `RpcResponse`, validating the structure.
-- **Conversion:** Easily created from `CallResult`, `CallResponse`, or `CallError`.
+- **Conversion:** Easily created from `CallResult`, `CallSuccess`, or `CallError`.
 
 ### `RpcError`
 

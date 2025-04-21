@@ -1,5 +1,5 @@
 use crate::RpcId;
-use crate::router::{CallError, CallResponse, CallResult}; // Import router result types
+use crate::router::{CallError, CallResult, CallSuccess}; // Import router result types
 use crate::rpc_response::{RpcError, RpcResponseParsingError};
 use serde::de::{MapAccess, Visitor};
 use serde::ser::SerializeMap;
@@ -73,11 +73,11 @@ impl RpcResponse {
 }
 // endregion: --- Accessors
 
-// region:    --- From Router CallResult/CallResponse/CallError
+// region:    --- From Router CallResult/CallSuccess/CallError
 
-impl From<CallResponse> for RpcResponse {
-	/// Converts a successful router `CallResponse` into a JSON-RPC `RpcResponse::Success`.
-	fn from(call_response: CallResponse) -> Self {
+impl From<CallSuccess> for RpcResponse {
+	/// Converts a successful router `CallSuccess` into a JSON-RPC `RpcResponse::Success`.
+	fn from(call_response: CallSuccess) -> Self {
 		RpcResponse::Success {
 			id: call_response.id,
 			result: call_response.value,
@@ -97,7 +97,7 @@ impl From<CallError> for RpcResponse {
 }
 
 impl From<CallResult> for RpcResponse {
-	/// Converts a router `CallResult` (which is Result<CallResponse, CallError>)
+	/// Converts a router `CallResult` (which is Result<CallSuccess, CallError>)
 	/// into the appropriate JSON-RPC `RpcResponse`.
 	fn from(call_result: CallResult) -> Self {
 		match call_result {
@@ -107,7 +107,7 @@ impl From<CallResult> for RpcResponse {
 	}
 }
 
-// endregion: --- From Router CallResult/CallResponse/CallError
+// endregion: --- From Router CallResult/CallSuccess/CallError
 
 // region:    --- Serde Impls
 
@@ -421,7 +421,7 @@ mod tests {
 	#[test]
 	fn test_from_call_response() -> TestResult<()> {
 		// -- Setup & Fixtures
-		let call_response = CallResponse {
+		let call_response = CallSuccess {
 			id: RpcId::Number(101),
 			method: "test_method".to_string(),
 			value: json!({"success": true}),
@@ -465,7 +465,7 @@ mod tests {
 	#[test]
 	fn test_from_call_result_ok() -> TestResult<()> {
 		// -- Setup & Fixtures
-		let call_result: CallResult = Ok(CallResponse {
+		let call_result: CallResult = Ok(CallSuccess {
 			id: 103.into(),
 			method: "test_method".to_string(),
 			value: json!("ok_data"),

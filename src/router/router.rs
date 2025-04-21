@@ -61,7 +61,7 @@ impl Router {
 	/// -     id: The json-rpc request ID. If None, defaults to RpcId::Null.
 	/// - params: The optional json-rpc params
 	///
-	/// Returns an CallResult, where either the success value (CallResponse) or the error (CallError)
+	/// Returns an CallResult, where either the success value (CallSuccess) or the error (CallError)
 	/// will echo back the `id` and `method` part of their construct
 	pub async fn call_route(&self, id: Option<RpcId>, method: impl Into<String>, params: Option<Value>) -> CallResult {
 		let id = id.unwrap_or_default(); // Default to RpcId::Null if None

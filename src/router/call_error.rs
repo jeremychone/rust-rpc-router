@@ -1,10 +1,10 @@
-use crate::{CallResponse, RpcId};
+use crate::{CallSuccess, RpcId};
 
-pub type CallResult = core::result::Result<CallResponse, CallError>;
+pub type CallResult = core::result::Result<CallSuccess, CallError>;
 
 /// The Error type returned by `rpc_router.call...` functions.
 ///
-/// NOTE: CallResponse & CallError
+/// NOTE: CallSuccess & CallError
 ///       are not designed to be the JSON-RPC Response
 ///       or Error, but to provide the necessary context
 ///       to build those, as well as the useful `method name`
@@ -27,4 +27,3 @@ impl core::fmt::Display for CallError {
 impl std::error::Error for CallError {}
 
 // endregion: --- Error Boilerplate
-

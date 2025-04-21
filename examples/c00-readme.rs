@@ -1,7 +1,7 @@
 #![allow(unused)] // For examples.
 
 use rpc_router::{
-	CallResponse, FromResources, IntoParams, RpcRequest, Resources, RpcHandlerError, RpcParams, RpcResource,
+	CallSuccess, FromResources, IntoParams, RpcRequest, Resources, RpcHandlerError, RpcParams, RpcResource,
 	resources_builder, router_builder,
 };
 use serde::{Deserialize, Serialize};
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// e.g., rpc_router.call_with_resources(rpc_request, additional_resources)
 
 	// Display the response.
-	let CallResponse { id, method, value } = call_response;
+	let CallSuccess { id, method, value } = call_response;
 	println!(
 		r#"RPC call response:
 

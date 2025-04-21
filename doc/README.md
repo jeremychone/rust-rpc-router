@@ -22,7 +22,7 @@ It provides a flexible way to define and route JSON-RPC requests to correspondin
 3.  **`Resources`:** A type map holding shared application state (e.g., database pools, config). Handlers access resources via types implementing `FromResources`.
 4.  **`FromResources` Trait:** Types implementing this trait can be injected as parameters into RPC handlers, fetched from the `Resources` map. Use `#[derive(RpcResource)]` for convenience.
 5.  **`IntoParams` Trait:** Types implementing this trait can be used as the final parameter in an RPC handler to receive and deserialize the JSON-RPC `params` field. Use `#[derive(RpcParams)]` for simple deserialization or implement the trait manually for custom logic.
-6.  **`CallResult`:** The `Result` type returned by `router.call(...)`, containing either `CallResponse` (on success) or `CallError` (on failure). Includes the original `RpcId` and method name for context.
+6.  **`CallResult`:** The `Result` type returned by `router.call(...)`, containing either `CallSuccess` (on success) or `CallError` (on failure). Includes the original `RpcId` and method name for context.
 7.  **`RpcResponse`:** Represents a standard JSON-RPC 2.0 response object (success or error). Can be easily created from a `CallResult`.
 8.  **`HandlerError`:** A wrapper for application-specific errors returned by handlers, allowing the application layer to recover the original error type. Use `#[derive(RpcHandlerError)]` on your custom error enums.
 
