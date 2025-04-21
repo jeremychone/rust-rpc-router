@@ -1,4 +1,4 @@
-use rpc_router::{router_builder, FromResources, Handler, IntoHandlerError, IntoParams, Resources, Router};
+use rpc_router::{FromResources, Handler, IntoHandlerError, IntoParams, Resources, Router, router_builder};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::task::JoinSet;

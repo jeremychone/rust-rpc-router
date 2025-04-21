@@ -1,7 +1,7 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{router_builder, HandlerResult, RpcParams, RpcResource};
+use rpc_router::{HandlerResult, RpcParams, RpcResource, router_builder};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::task::JoinSet;

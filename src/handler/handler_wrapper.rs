@@ -1,5 +1,5 @@
-use crate::handler::PinFutureValue;
 use crate::Handler;
+use crate::handler::PinFutureValue;
 use crate::{Resources, Result};
 use futures::Future;
 use serde_json::Value;

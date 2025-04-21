@@ -1,6 +1,6 @@
 use crate::{FromResourcesError, HandlerError};
 use serde::Serialize;
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 
 pub type Result<T> = core::result::Result<T, Error>;
 
