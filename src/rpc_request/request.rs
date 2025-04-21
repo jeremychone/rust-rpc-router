@@ -12,10 +12,17 @@ pub struct RpcRequest {
 }
 
 impl RpcRequest {
+	pub fn from_value(value: Value) -> Result<RpcRequest, RpcRequestParsingError> {
+		RpcRequest::from_value_with_checks(value, RpcRequestCheckFlags::ALL)
+	}
+
 	/// Will perform the `jsonrpc: "2.0"` validation and parse the request.
 	/// If this is not desired, using the standard `serde_json::from_value` would do the parsing
 	/// and ignore `jsonrpc` property.
-	pub fn from_value(value: Value) -> Result<RpcRequest, RpcRequestParsingError> {
+	pub fn from_value_with_checks(
+		value: Value,
+		checks: RpcRequestCheckFlags,
+	) -> Result<RpcRequest, RpcRequestParsingError> {
 		// TODO: When capturing the Value, we might implement a safeguard to prevent capturing Value Object or arrays
 		//       as they can be indefinitely large. One technical solution would be to replace the value with a String,
 		//       using something like `"[object/array redacted, 'id' should be of type number, string or null]"` as the string.
@@ -84,6 +91,21 @@ impl RpcRequest {
 	}
 }
 
+bitflags::bitflags! {
+	/// Represents a set of flags.
+	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+	pub struct RpcRequestCheckFlags: u32 {
+		/// Check if the
+		const VERSION = 0b00000001;
+		/// The value `B`, at bit position `1`.
+		const ID = 0b00000010;
+
+		const ALL = Self::VERSION.bits() | Self::ID.bits();
+	}
+}
+
+// region:    --- Support
+
 // Returns the eventual (id_value, method) tuple from a reference
 fn extract_id_value_and_method(obj: &serde_json::Map<String, Value>) -> (Option<Value>, Option<String>) {
 	let id = obj.get("id").cloned();
@@ -103,3 +125,5 @@ impl TryFrom<Value> for RpcRequest {
 		RpcRequest::from_value(value)
 	}
 }
+
+// endregion: --- Support
