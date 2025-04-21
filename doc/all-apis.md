@@ -1,674 +1,213 @@
-# `rpc-router` - All APIs
-
-This document provides a detailed overview of the public APIs exposed by the `rpc-router` crate.
-
-## Table of Contents
-
-- [Core Concepts](#core-concepts)
-  - [`Router`](#router)
-  - [`RouterBuilder`](#routerbuilder)
-  - [`Handler` Trait](#handler-trait)
-  - [`Resources`](#resources)
-  - [`ResourcesBuilder`](#resourcesbuilder)
-  - [`FromResources` Trait](#fromresources-trait)
-  - [`RpcResource` Derive Macro](#rpcresource-derive-macro)
-  - [`IntoParams` Trait](#intoparams-trait)
-  - [`IntoDefaultRpcParams` Trait](#intodefaultrpcparams-trait)
-  - [`RpcParams` Derive Macro](#rpcparams-derive-macro)
-- [Request Handling](#request-handling)
-  - [`RpcRequest`](#rpcrequest)
-  - [`RpcId`](#rpcid)
-  - [`RpcRequestParsingError`](#rpcrequestparsingerror)
-- [Response Handling](#response-handling)
-  - [`CallResult`](#callresult)
-  - [`CallSuccess`](#CallSuccess)
-  - [`CallError`](#callerror)
-  - [`RpcResponse`](#rpcresponse)
-  - [`RpcError`](#rpcerror)
-  - [`RpcResponseParsingError`](#rpcresponseparsingerror)
-- [Error Handling](#error-handling)
-  - [`rpc_router::Error`](#rpc_routererror)
-  - [`HandlerError`](#handlererror)
-  - [`HandlerResult`](#handlerresult)
-  - [`IntoHandlerError` Trait](#intohandlererror-trait)
-  - [`RpcHandlerError` Derive Macro](#rpchandlererror-derive-macro)
-- [Helper Macros](#helper-macros)
-  - [`router_builder!`](#router_builder)
-  - [`resources_builder!`](#resources_builder)
-
----
-
-## Core Concepts
-
-### `Router`
-
-The main entry point for handling RPC calls. It stores the routing table and base resources.
-
-```rust
-pub struct Router { /* fields omitted */ }
-
-impl Router {
-    /// Creates a new `RouterBuilder`.
-    pub fn builder() -> RouterBuilder;
-
-    /// Executes an RPC call based on an `RpcRequest`.
-    /// Uses the router's base resources.
-    pub async fn call(&self, rpc_request: RpcRequest) -> CallResult;
-
-    /// Executes an RPC call, overlaying `additional_resources`
-    /// on top of the router's base resources.
-    pub async fn call_with_resources(
-        &self,
-        rpc_request: RpcRequest,
-        additional_resources: Resources
-    ) -> CallResult;
-
-    /// Lower-level call execution taking individual components.
-    /// Uses the router's base resources. `id` defaults to `Null` if `None`.
-    pub async fn call_route(
-        &self,
-        id: Option<RpcId>,
-        method: impl Into<String>,
-        params: Option<Value>
-    ) -> CallResult;
-
-    /// Lower-level call execution with overlay resources.
-    /// `id` defaults to `Null` if `None`.
-    pub async fn call_route_with_resources(
-        &self,
-        id: Option<RpcId>,
-        method: impl Into<String>,
-        params: Option<Value>,
-        additional_resources: Resources
-    ) -> CallResult;
-}
-
-// Router itself can be a resource
-impl FromResources for Router {}
-```
-
-- **Cloning:** `Router` uses `Arc` internally, making clones cheap and suitable for sharing across threads/tasks.
-- **Call Methods:** Provide high-level (`call`, `call_with_resources`) and lower-level (`call_route`, `call_route_with_resources`) ways to execute RPC calls.
-- **Resources:** Can hold base resources accessible to all handlers. `call_with_resources` allows providing request-specific resources.
-
-### `RouterBuilder`
-
-Used to configure and build a `Router`.
-
-```rust
-pub struct RouterBuilder { /* fields omitted */ }
-
-impl RouterBuilder {
-    /// Adds a handler function directly.
-    /// Generic, may lead to monomorphization for each handler type.
-    pub fn append<F, T, P, R>(
-        mut self,
-        name: &'static str,
-        handler: F
-    ) -> Self
-    where F: Handler<T, P, R> + Clone + Send + Sync + 'static, T: ..., P: ..., R: ...;
-
-    /// Adds a pre-boxed handler trait object. Preferred to avoid monomorphization.
-    pub fn append_dyn(
-        mut self,
-        name: &'static str,
-        dyn_handler: Box<dyn RpcHandlerWrapperTrait>
-    ) -> Self;
-
-    /// Adds a resource to the router's base resources.
-    pub fn append_resource<T>(mut self, val: T) -> Self
-    where T: FromResources + Clone + Send + Sync + 'static;
-
-    /// Merges another `RouterBuilder`'s routes and resources into this one.
-    pub fn extend(mut self, other_builder: RouterBuilder) -> Self;
-
-    /// Extends the base resources with those from an optional `ResourcesBuilder`.
-    pub fn extend_resources(
-        mut self,
-        resources_builder: Option<ResourcesBuilder>
-    ) -> Self;
-
-    /// Replaces the router's base resources with those from a `ResourcesBuilder`.
-    pub fn set_resources(mut self, resources_builder: ResourcesBuilder) -> Self;
-
-    /// Consumes the builder and creates the `Router`.
-    pub fn build(self) -> Router;
-}
-```
-
-- **Fluent Interface:** Methods return `Self` for chaining.
-- **Handlers:** Add handlers using `append` (generic) or `append_dyn` (trait object).
-- **Resources:** Manage base resources with `append_resource`, `extend_resources`, `set_resources`.
-- **Composition:** Use `extend` to combine multiple router configurations.
-
-### `Handler` Trait
-
-The core trait implemented by RPC handler functions. You typically don't implement this directly; the library provides implementations for `async fn` with specific signatures.
-
-```rust
-pub trait Handler<T, P, R>: Clone
-where T: Send + Sync + 'static, P: Send + Sync + 'static, R: Send + Sync + 'static {
-    type Future: Future<Output = Result<Value>> + Send + 'static;
-
-    fn call(self, rpc_resources: Resources, params: Option<Value>) -> Self::Future;
-
-    fn into_dyn(self) -> Box<dyn RpcHandlerWrapperTrait>
-    where Self: Sized + Send + Sync + 'static;
-}
-```
-
-- **Signature:** The library implements `Handler` for functions like:
-    - `async fn()` -> `HandlerResult<Serialize>`
-    - `async fn(R1)` -> `HandlerResult<Serialize>`
-    - `async fn(R1, R2)` -> `HandlerResult<Serialize>`
-    - ... (up to 8 resource parameters `R` where `Ri: FromResources`)
-    - `async fn(P)` -> `HandlerResult<Serialize>`
-    - `async fn(R1, P)` -> `HandlerResult<Serialize>`
-    - `async fn(R1, R2, P)` -> `HandlerResult<Serialize>`
-    - ... (up to 8 resource parameters `R`, followed by one param `P: IntoParams`)
-- **`T`:** Tuple representing the `FromResources` types.
-- **`P`:** The `IntoParams` type (or `()` if no params).
-- **`R`:** The `Serialize` type returned within `Ok`.
-- **Return Type:** Must be `HandlerResult<S>` where `S: Serialize`. `HandlerResult<T>` is `Result<T, HandlerError>`.
-- **`into_dyn`:** Used internally to convert the handler function into a type-erased trait object for storage in the router.
-
-### `Resources`
-
-A type map holding shared application state or request-specific data.
-
-```rust
-#[derive(Debug, Clone, Default)]
-pub struct Resources { /* fields omitted */ }
-
-impl Resources {
-    /// Creates a new `ResourcesBuilder`.
-    pub fn builder() -> ResourcesBuilder;
-
-    /// Retrieves a clone of a resource of type `T`.
-    /// Checks overlay resources first, then base resources.
-    pub fn get<T: Clone + Send + Sync + 'static>(&self) -> Option<T>;
-
-    /// Checks if both base and overlay resources are empty.
-    pub fn is_empty(&self) -> bool;
-}
-```
-
-- **Type Map:** Stores instances of different types, retrievable by their type ID.
-- **Cloning:** Uses `Arc` internally for cheap cloning. Resources themselves must be `Clone`.
-- **Layered:** Can have base resources (from the `Router`) and overlay resources (provided per-call). `get` prioritizes the overlay.
-
-### `ResourcesBuilder`
-
-Used to construct a `Resources` instance.
-
-```rust
-#[derive(Debug, Default, Clone)]
-pub struct ResourcesBuilder { /* fields omitted */ }
-
-impl ResourcesBuilder {
-    /// Retrieves a clone of a resource added to the builder.
-    pub fn get<T: Clone + Send + Sync + 'static>(&self) -> Option<T>;
-
-    /// Adds a resource instance to the builder (consuming).
-    pub fn append<T: Clone + Send + Sync + 'static>(mut self, val: T) -> Self;
-
-    /// Adds a resource instance to the builder (mutable borrow).
-    pub fn append_mut<T: Clone + Send + Sync + 'static>(&mut self, val: T);
-
-    /// Consumes the builder and creates a `Resources` instance.
-    pub fn build(self) -> Resources;
-}
-```
-
-- **Fluent Interface:** `append` returns `Self`.
-- **Builds `Resources`:** Collects resources and then uses `build()` to create the final `Resources` object.
-
-### `FromResources` Trait
-
-Marks a type as extractable from `Resources`.
-
-```rust
-pub trait FromResources {
-    /// Attempts to retrieve the resource from the `Resources` map.
-    /// Default implementation provided.
-    fn from_resources(resources: &Resources) -> FromResourcesResult<Self>
-    where Self: Sized + Clone + Send + Sync + 'static;
-}
-
-// Blanket implementation for Option<T> where T: FromResources
-impl<T> FromResources for Option<T> where T: FromResources, ... {}
-```
-
-- **Implementation:** You usually derive this using `#[derive(RpcResource)]` or implement it manually if needed. The trait itself doesn't require methods if using the default.
-- **Handler Parameters:** Types implementing `FromResources` can appear as parameters (before the optional `IntoParams` parameter) in handler functions.
-- **`Option<T>`:** If a handler takes `Option<T>` (where `T: FromResources`), it will receive `Some(T)` if the resource exists, and `None` otherwise, without causing an error.
-
-### `RpcResource` Derive Macro
-
-A convenience macro to derive `FromResources` for a struct or enum.
-
-```rust
-use rpc_router::RpcResource;
-
-#[derive(Clone, RpcResource)]
-struct MyDbConnection { /* ... */ }
-```
-
-- **Requires:** The type must also be `Clone + Send + Sync + 'static`.
-
-### `IntoParams` Trait
-
-Marks a type as deserializable from the JSON-RPC `params` field.
-
-```rust
-pub trait IntoParams: DeserializeOwned + Send {
-    /// Converts the `Option<Value>` from the request into `Self`.
-    /// Default implementation attempts deserialization, errors if `value` is `None`.
-    fn into_params(value: Option<Value>) -> Result<Self>;
-}
-```
-
-- **Implementation:** Typically derived using `#[derive(RpcParams)]` for simple `serde` deserialization. Implement manually for custom parsing logic or validation.
-- **Handler Parameter:** A type implementing `IntoParams` can be the *last* parameter in a handler function.
-- **Default Behavior:** If `params` are missing in the request but the handler expects them, the default implementation returns `Error::ParamsMissingButRequested`.
-
-### `IntoDefaultRpcParams` Trait
-
-A marker trait used with `IntoParams` to provide default values.
-
-```rust
-pub trait IntoDefaultRpcParams: DeserializeOwned + Send + Default {}
-
-// Blanket implementation of IntoParams for types implementing IntoDefaultRpcParams
-impl<P> IntoParams for P where P: IntoDefaultRpcParams {
-    fn into_params(value: Option<Value>) -> Result<Self> {
-        match value {
-            Some(value) => Ok(serde_json::from_value(value).map_err(Error::ParamsParsing)?),
-            None => Ok(Self::default()), // Use default() if params are missing
-        }
+# RPC Router - All APIs
+
+This document provides a comprehensive overview of all public APIs exposed by the `rpc-router` crate.
+
+## Core Types
+
+-   **`Router`**: The central component that holds RPC method routes and associated handlers. It's typically created using `RouterBuilder` and wrapped in an `Arc` for efficient sharing.
+-   **`RouterBuilder`**: Used to configure and build a `Router`. Allows adding handlers and base resources.
+-   **`Resources`**: A type map used to hold shared application state or resources (like database connections, configuration, etc.) accessible by handlers.
+-   **`ResourcesBuilder`**: Used to configure and build `Resources`.
+
+## Request Handling Flow
+
+1.  **Parsing the Request**: Incoming JSON-RPC requests (as `serde_json::Value`) are typically parsed into an `RpcRequest` object.
+2.  **Calling the Router**: The `Router::call` or `Router::call_with_resources` method is invoked with the `RpcRequest` and optional additional `Resources`.
+3.  **Method Routing**: The router finds the handler registered for the requested `method`.
+4.  **Resource Injection**: The router attempts to extract required resources (types implementing `FromResources`) from the provided `Resources`.
+5.  **Parameter Deserialization**: If the handler expects parameters, the `params` field of the `RpcRequest` (an `Option<Value>`) is deserialized into the expected type using the `IntoParams` trait.
+6.  **Handler Execution**: The asynchronous handler function is called with the injected resources and deserialized parameters.
+7.  **Result Handling**: The handler returns a `HandlerResult<T>` (which is `Result<T, HandlerError>`).
+8.  **Router Response**: The router captures the handler's result or any errors during resource/parameter handling and wraps it in a `CallResult` (`Result<CallSuccess, CallError>`).
+9.  **JSON-RPC Response Formation**: The `CallResult` is typically converted into a standard JSON-RPC `RpcResponse` (Success or Error) for sending back to the client.
+
+## Request Parsing (`RpcRequest`)
+
+-   **`RpcRequest`**: Represents a parsed JSON-RPC request.
+    ```rust
+    pub struct RpcRequest {
+        pub id: RpcId,
+        pub method: String,
+        pub params: Option<Value>,
     }
-}
-```
+    ```
+-   **`RpcId`**: An enum representing the JSON-RPC ID (`String(Arc<str>)`, `Number(i64)`, or `Null`). Implements `Serialize`, `Deserialize`, `From<String>`, `From<&str>`, `From<i64>`, etc.
+-   **Parsing**:
+    -   **`RpcRequest::from_value(value: Value) -> Result<RpcRequest, RpcRequestParsingError>`**: Parses a `serde_json::Value` into an `RpcRequest`. Performs strict validation: checks for `"jsonrpc": "2.0"` and ensures the `id` is a valid JSON-RPC ID (string, number, or null).
+    -   **`RpcRequest::from_value_with_checks(value: Value, checks: RpcRequestCheckFlags) -> Result<RpcRequest, RpcRequestParsingError>`**: Allows selective validation based on flags.
+        -   `RpcRequestCheckFlags`: Bitflags to control checks (`VERSION`, `ID`, `ALL`).
+        -   Example (skip ID check):
+            ```rust
+            use rpc_router::{RpcRequest, RpcRequestCheckFlags, RpcRequestParsingError};
+            use serde_json::json;
 
-- **Usage:** Implement this marker trait on your `IntoParams` type *if* it also implements `Default`.
-- **Behavior:** If the JSON-RPC request omits the `params` field, the handler will receive `T::default()` instead of an error.
+            let request_value = json!({
+              "jsonrpc": "2.0",
+              // "id": 123, // ID missing, but we'll skip the check
+              "method": "my_method",
+              "params": [1, 2]
+            });
 
-### `RpcParams` Derive Macro
+            let flags = RpcRequestCheckFlags::VERSION; // Only check version
+            let result = RpcRequest::from_value_with_checks(request_value, flags);
 
-A convenience macro to derive `IntoParams` (and potentially `IntoDefaultRpcParams` if `Default` is also derived/implemented).
+            assert!(result.is_ok());
+            let request = result.unwrap();
+            // request.id will default to RpcId::Null if check is skipped and id is missing
+            assert_eq!(request.id, rpc_router::RpcId::Null);
+            assert_eq!(request.method, "my_method");
+            ```
+    -   **`TryFrom<Value> for RpcRequest`**: Convenience trait implementation calling `RpcRequest::from_value`.
+    -   **`RpcRequestParsingError`**: Enum detailing specific parsing failures (e.g., `VersionMissing`, `IdInvalid`, `MethodMissing`).
 
-```rust
-use rpc_router::RpcParams;
-use serde::Deserialize;
+## Router Invocation
 
-#[derive(Deserialize, RpcParams)] // Implements IntoParams
-struct MyParams {
-    field: String,
-}
+-   **`Router::call(&self, rpc_request: RpcRequest) -> impl Future<Output = CallResult>`**: Executes the request using the router's base resources.
+-   **`Router::call_with_resources(&self, rpc_request: RpcRequest, additional_resources: Resources) -> impl Future<Output = CallResult>`**: Executes the request, overlaying `additional_resources` on top of the base resources. Resources are looked up first in `additional_resources`, then in the base resources.
+-   **`Router::call_route(&self, id: Option<RpcId>, method: impl Into<String>, params: Option<Value>) -> impl Future<Output = CallResult>`**: Lower-level call using individual components instead of `RpcRequest`. Uses base resources. `id` defaults to `RpcId::Null` if `None`.
+-   **`Router::call_route_with_resources(...)`**: Like `call_route` but with `additional_resources`.
 
-#[derive(Deserialize, Default, RpcParams)] // Implements IntoParams + IntoDefaultRpcParams
-struct MyOptionalParams {
-    field: Option<i32>,
-}
-```
+## Router Call Output
 
-- **Requires:** The type must implement `serde::Deserialize` and be `Send + 'static`.
-- **Default Handling:** If the type also implements `Default`, the macro ensures the `IntoDefaultRpcParams` behavior is used.
+-   **`CallResult`**: Type alias for `Result<CallSuccess, CallError>`.
+-   **`CallSuccess`**: Struct containing the successful result details.
+    ```rust
+    pub struct CallSuccess {
+        pub id: RpcId,
+        pub method: String,
+        pub value: Value, // Serialized result from the handler
+    }
+    ```
+-   **`CallError`**: Struct containing error details.
+    ```rust
+    pub struct CallError {
+        pub id: RpcId,
+        pub method: String,
+        pub error: router::Error, // The router/handler error
+    }
+    ```
+    Implements `std::error::Error`.
 
----
+## Defining Handlers
 
-## Request Handling
+-   **Signature**: Handlers are `async` functions with the following general signature:
+    ```rust
+    async fn handler_name(
+        [resource1: T1, resource2: T2, ...] // 0 or more resources implementing FromResources
+        [params: P]                         // 0 or 1 parameter implementing IntoParams
+    ) -> HandlerResult<R>                   // R must implement Serialize
+    where
+        T1: FromResources, T2: FromResources, ...,
+        P: IntoParams,
+        R: Serialize
+    {
+        // ... logic ...
+        Ok(result_value) // or Err(handler_error)
+    }
+    ```
+-   **`HandlerResult<T>`**: Alias for `Result<T, HandlerError>`. Handlers should return this.
+-   **`Handler` Trait**: Automatically implemented for functions matching the required signatures (up to 8 resource parameters). You generally don't interact with this trait directly.
 
-Types related to parsing and representing incoming JSON-RPC requests.
+### Handler Parameters (`IntoParams`)
 
-### `RpcRequest`
+-   **`IntoParams` Trait**: Implement this for types you want to use as the `params` argument in your handlers.
+    -   Requires `DeserializeOwned + Send`.
+    -   Default `into_params` method deserializes from `Some(Value)`, returns `Error::ParamsMissingButRequested` if `None`.
+-   **`IntoDefaultRpcParams` Trait**: Marker trait. If a type implements `IntoDefaultRpcParams` and `Default`, `IntoParams` is automatically implemented such that `T::default()` is used when JSON-RPC params are `null` or absent.
+-   **Derive Macro `#[derive(RpcParams)]`**: The recommended way to implement `IntoParams` for simple structs. Equivalent to `impl IntoParams for MyType {}`.
+-   **Derive Macro `#[derive(RpcParams, Default)]`**: The recommended way to implement `IntoDefaultRpcParams`. Equivalent to `impl IntoDefaultRpcParams for MyType {}` (assuming `Default` is also derived or implemented).
+-   **Blanket Impls (Optional Features)**:
+    -   `Option<T>`: `IntoParams` is implemented for `Option<T>` where `T: IntoParams`.
+    -   `Value`: `IntoParams` is implemented directly for `serde_json::Value`.
 
-Represents a parsed JSON-RPC request (excluding notifications).
+### Handler Resources (`FromResources`)
 
-```rust
-#[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct RpcRequest {
-    pub id: RpcId,
-    pub method: String,
-    pub params: Option<Value>,
-}
+-   **`FromResources` Trait**: Implement this for types you want to inject as resource arguments into your handlers.
+    -   Default `from_resources` method retrieves the type from `Resources`. Returns `FromResourcesError::ResourceNotFound` if not found.
+-   **Derive Macro `#[derive(RpcResource)]`**: Recommended way. Equivalent to `impl FromResources for MyType {}`. Ensure the type also implements `Clone + Send + Sync + 'static`.
+-   **Blanket Impl `Option<T>`**: `FromResources` is implemented for `Option<T>` where `T: FromResources`, allowing optional resource injection (returns `Ok(None)` if the resource `T` is not found).
 
-impl RpcRequest {
-    /// Parses a `serde_json::Value` into an `RpcRequest`.
-    /// Validates `jsonrpc: "2.0"` and presence/type of `id` and `method`.
-    pub fn from_value(value: Value) -> Result<RpcRequest, RpcRequestParsingError>;
-}
+## Resources Management
 
-impl TryFrom<Value> for RpcRequest {
-    type Error = RpcRequestParsingError;
-    fn try_from(value: Value) -> Result<RpcRequest, RpcRequestParsingError>;
-}
-```
+-   **`Resources`**: A cloneable type map (`Arc`-based internally).
+    -   `Resources::builder() -> ResourcesBuilder`
+    -   `get<T: Clone + Send + Sync + 'static>(&self) -> Option<T>`: Retrieves a clone of the resource.
+-   **`ResourcesBuilder`**:
+    -   `default()`
+    -   `append<T: Clone + Send + Sync + 'static>(self, val: T) -> Self`: Adds a resource.
+    -   `append_mut<T>(&mut self, val: T)`: Adds a resource without consuming the builder.
+    -   `build(self) -> Resources`: Creates the `Resources` object.
+-   **`resources_builder!` Macro**: Convenience for creating a `ResourcesBuilder` and appending items.
+    ```rust
+    let resources = resources_builder!(MyDb::new(), MyConfig::load()?).build();
+    ```
 
-- **Structure:** Holds the core components of a standard JSON-RPC request.
-- **Parsing:** Use `RpcRequest::from_value` or `value.try_into()` for strict parsing and validation. Standard `serde_json::from_value` can also be used but won't validate `jsonrpc` version.
+## Router Configuration (`RouterBuilder`)
 
-### `RpcId`
+-   **`RouterBuilder::default()`**: Creates a new builder.
+-   **`append<F, T, P, R>(self, name: &'static str, handler: F) -> Self`**: Adds a handler function directly.
+-   **`append_dyn(self, name: &'static str, dyn_handler: Box<dyn RpcHandlerWrapperTrait>) -> Self`**: Adds a type-erased handler (often used with `handler.into_dyn()`). Preferred to avoid monomorphization if adding many routes dynamically.
+-   **`append_resource<T>(self, val: T) -> Self`**: Adds a base resource available to all handlers in this router.
+-   **`extend(self, other_builder: RouterBuilder) -> Self`**: Merges another builder's routes and resources.
+-   **`extend_resources(self, resources_builder: Option<ResourcesBuilder>) -> Self`**: Adds resources from another `ResourcesBuilder` to the base resources.
+-   **`set_resources(self, resources_builder: ResourcesBuilder) -> Self`**: Replaces the router's base resources.
+-   **`build(self) -> Router`**: Builds the final `Router`.
+-   **`router_builder!` Macro**: Convenience macro.
+    ```rust
+    // Simple list of handlers
+    let router = router_builder!(handler_one, handler_two).build();
 
-Represents a JSON-RPC request ID (String, Number, or Null).
-
-```rust
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum RpcId {
-    String(Arc<str>), // Uses Arc<str> for efficient cloning
-    Number(i64),
-    Null,
-}
-
-// Implements: Serialize, Deserialize, Display, Default, From<String>, From<&str>, From<i64>, ...
-impl RpcId {
-    pub fn to_value(&self) -> Value;
-    pub fn from_value(value: Value) -> Result<Self, RpcRequestParsingError>;
-}
-```
-
-- **Types:** Enforces the valid JSON-RPC ID types.
-- **Efficiency:** Uses `Arc<str>` for string IDs to avoid reallocations on cloning.
-
-### `RpcRequestParsingError`
-
-Errors that occur during `RpcRequest::from_value` parsing.
-
-```rust
-#[derive(Debug, Serialize)]
-pub enum RpcRequestParsingError {
-    RequestInvalidType { actual_type: String },
-    VersionMissing { id: Option<Value>, method: Option<String> },
-    VersionInvalid { id: Option<Value>, method: Option<String>, version: Value },
-    MethodMissing { id: Option<Value> },
-    MethodInvalidType { id: Option<Value>, method: Value },
-    MethodInvalid { actual: String }, // Added variant
-    IdMissing { method: Option<String> },
-    IdInvalid { actual: String, cause: String },
-    Parse(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
-}
-// Implements: Display, std::error::Error
-```
-
-- **Contextual:** Provides details about why parsing failed (missing fields, wrong types, invalid version).
-
----
-
-## Response Handling
-
-Types related to the results of router calls and standard JSON-RPC responses.
-
-### `CallResult`
-
-The type alias for the `Result` returned by `Router::call` methods.
-
-```rust
-pub type CallResult = Result<CallSuccess, CallError>;
-```
-
-### `CallSuccess`
-
-Represents a successful result from a `Router::call`.
-
-```rust
-#[derive(Debug, Clone)]
-pub struct CallSuccess {
-    pub id: RpcId,
-    pub method: String,
-    pub value: Value, // The JSON-serialized return value from the handler
-}
-```
-
-- **Context:** Includes the original `id` and `method` for logging/tracing.
-- **Value:** Contains the successful result from the handler, already serialized to `serde_json::Value`.
-
-### `CallError`
-
-Represents a failed result from a `Router::call`.
-
-```rust
-#[derive(Debug)]
-pub struct CallError {
-    pub id: RpcId,
-    pub method: String,
-    pub error: crate::Error, // The specific rpc-router::Error that occurred
-}
-// Implements: Display, std::error::Error
-```
-
-- **Context:** Includes the original `id` and `method`.
-- **Error:** Contains the specific `rpc_router::Error` variant indicating the failure reason (e.g., method unknown, parameter parsing failed, handler error).
-
-### `RpcResponse`
-
-Represents a standard JSON-RPC 2.0 response object (Success or Error).
-
-```rust
-#[derive(Debug, Clone, PartialEq)]
-pub enum RpcResponse {
-    Success { id: RpcId, result: Value },
-    Error { id: RpcId, error: RpcError },
-}
-
-// Implements: Serialize, Deserialize
-impl RpcResponse {
-    pub fn from_success(id: RpcId, result: Value) -> Self;
-    pub fn from_error(id: RpcId, error: RpcError) -> Self;
-    pub fn is_success(&self) -> bool;
-    pub fn is_error(&self) -> bool;
-    pub fn id(&self) -> &RpcId;
-    pub fn into_parts(self) -> (RpcId, Result<Value, RpcError>);
-}
-
-// Conversion from router results
-impl From<CallSuccess> for RpcResponse;
-impl From<CallError> for RpcResponse;
-impl From<CallResult> for RpcResponse;
-```
-
-- **Standard:** Conforms to the JSON-RPC 2.0 specification for response objects.
-- **Serialization:** Serializes to the correct JSON-RPC format (including `jsonrpc: "2.0"`).
-- **Deserialization:** Parses JSON into `RpcResponse`, validating the structure.
-- **Conversion:** Easily created from `CallResult`, `CallSuccess`, or `CallError`.
-
-### `RpcError`
-
-Represents the standard JSON-RPC 2.0 Error Object structure.
-
-```rust
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct RpcError {
-    pub code: i64,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
-}
-
-impl RpcError {
-    // Constants for standard codes (-32700, -32600, -32601, -32602, -32603)
-    pub const CODE_PARSE_ERROR: i64 = -32700;
-    // ... other codes
-
-    // Constructors for standard errors
-    pub fn from_parse_error(data: Option<Value>) -> Self;
-    // ... other constructors
-}
-
-// Conversion from router errors
-impl From<&crate::Error> for RpcError;
-impl From<CallError> for RpcError;
-impl From<&CallError> for RpcError;
-```
-
-- **Standard Fields:** `code`, `message`, optional `data`.
-- **Predefined Codes:** Provides constants and constructors for standard JSON-RPC error codes.
-- **Conversion:** Can be created from `rpc_router::Error` or `CallError`, mapping router-internal errors to appropriate JSON-RPC error codes and messages. The original router error is often included as a string in the `data` field.
-
-### `RpcResponseParsingError`
-
-Errors that occur during `RpcResponse` deserialization.
-
-```rust
-#[derive(Debug, Serialize)]
-pub enum RpcResponseParsingError {
-    InvalidJsonRpcVersion { id: Option<RpcId>, expected: &'static str, actual: Option<Value> },
-    MissingJsonRpcVersion { id: Option<RpcId> },
-    MissingId,
-    InvalidId(#[serde_as(as = "DisplayFromStr")] crate::RpcRequestParsingError), // Reuses ID parsing error
-    MissingResultAndError { id: RpcId },
-    BothResultAndError { id: RpcId },
-    InvalidErrorObject(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
-    Serde(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
-}
-// Implements: Display, std::error::Error, From<serde_json::Error>, From<RpcRequestParsingError>
-```
-
-- **Specific:** Details why response parsing failed (e.g., missing `id`, both `result` and `error` present, invalid version).
-
----
+    // With handlers and resources
+    let router = router_builder!(
+        handlers: [handler_one, handler_two],
+        resources: [MyDb::new()]
+    ).build();
+    ```
 
 ## Error Handling
 
-Types related to errors within the router and handlers.
+-   **`router::Error`**: Enum representing errors occurring *within* the router or during handler invocation setup (parameter parsing, resource fetching).
+    -   `ParamsParsing(serde_json::Error)`
+    -   `ParamsMissingButRequested`
+    -   `MethodUnknown`
+    -   `FromResources(FromResourcesError)`
+    -   `HandlerResultSerialize(serde_json::Error)`: Error serializing the handler's successful `Ok(value)`.
+    -   `Handler(HandlerError)`: Wraps an error returned *by* the handler (`Err(handler_error)`).
+-   **`FromResourcesError`**: Error specifically from failing to get a resource.
+    -   `ResourceNotFound(&'static str)`: Contains the name of the type not found.
+-   **`HandlerError`**: Wrapper for errors returned *by* the handler (`Err(handler_error)`).
+    -   `new<T: Any + Send + Sync + 'static>(val: T) -> HandlerError`
+    -   `get<T: Any + Send + Sync>(&self) -> Option<&T>`: Attempt to downcast the contained error back to its original type `T`.
+    -   `remove<T: Any + Send + Sync>(&mut self) -> Option<T>`: Downcast and take ownership.
+    -   `type_name(&self) -> &'static str`: Get the type name of the contained error.
+-   **`IntoHandlerError` Trait**: Convert any error (`T: Send + Sync + 'static`) into a `HandlerError`. Automatically implemented for types meeting the bounds. Allows handlers to return `Result<MySuccess, MyError>` which automatically converts `MyError` into `HandlerError`.
+-   **`#[derive(RpcHandlerError)]`**: Derive macro to implement `std::error::Error` and `From<YourEnumVariant> for HandlerError` for custom error enums returned by handlers.
 
-### `rpc_router::Error`
+## JSON-RPC Response (`RpcResponse`)
 
-The primary error enum for the router itself. Returned within `CallError`.
+-   **`RpcResponse`**: Enum representing a standard JSON-RPC 2.0 response.
+    -   `Success { id: RpcId, result: Value }`
+    -   `Error { id: RpcId, error: RpcError }`
+-   **`RpcError`**: Struct representing the JSON-RPC 2.0 Error Object.
+    -   `code: i64`
+    -   `message: String`
+    -   `data: Option<Value>`
+    -   Includes constants for standard JSON-RPC error codes (`CODE_METHOD_NOT_FOUND`, etc.).
+-   **Conversion**:
+    -   `From<CallSuccess> for RpcResponse`
+    -   `From<CallError> for RpcResponse`
+    -   `From<CallResult> for RpcResponse` (handles Ok/Err)
+    -   `From<&router::Error> for RpcError`: Converts internal router errors into standard `RpcError` structures.
+    -   `From<CallError> for RpcError`
+-   **Serialization/Deserialization**: `RpcResponse` implements `Serialize` and `Deserialize` according to the JSON-RPC 2.0 specification.
+-   **`RpcResponseParsingError`**: Enum detailing errors during `RpcResponse` deserialization (e.g., `InvalidJsonRpcVersion`, `BothResultAndError`).
 
-```rust
-#[derive(Debug, Serialize)]
-pub enum Error {
-    // -- Parameter Errors
-    ParamsParsing(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
-    ParamsMissingButRequested,
+## Utility Macros
 
-    // -- Router Errors
-    MethodUnknown,
+-   **`router_builder!(...)`**: Creates a `RouterBuilder` (see Router Configuration).
+-   **`resources_builder!(...)`**: Creates a `ResourcesBuilder` (see Resources Management).
+-   **`#[derive(RpcParams)]`**: Implements `IntoParams`.
+-   **`#[derive(RpcResource)]`**: Implements `FromResources`.
+-   **`#[derive(RpcHandlerError)]`**: Implements error boilerplate for handler errors.
 
-    // -- Handler Errors
-    FromResources(FromResourcesError), // Error getting resource
-    HandlerResultSerialize(#[serde_as(as = "DisplayFromStr")] serde_json::Error), // Error serializing handler Ok result
-    Handler(HandlerError), // Wrapper for error returned by the handler itself
-}
-// Implements: Display, std::error::Error, From<HandlerError>, From<FromResourcesError>
-```
-
-- **Categorized:** Groups errors related to parameter handling, routing, resource extraction, and handler execution.
-- **`Handler(HandlerError)`:** This variant wraps errors returned directly from your handler function, allowing the application to potentially recover the original error type.
-
-### `HandlerError`
-
-A type-erased wrapper for errors returned by handler functions.
-
-```rust
-#[derive(Debug)]
-pub struct HandlerError { /* fields omitted */ }
-
-// Implements: Serialize, Display, std::error::Error
-impl HandlerError {
-    /// Creates a new `HandlerError` wrapping the given value.
-    pub fn new<T>(val: T) -> HandlerError where T: Any + Send + Sync;
-
-    /// Attempts to downcast the wrapped error to type `T`.
-    pub fn get<T: Any + Send + Sync>(&self) -> Option<&T>;
-
-    /// Attempts to downcast and take ownership of the wrapped error.
-    pub fn remove<T: Any + Send + Sync>(&mut self) -> Option<T>;
-
-    /// Returns the type name of the wrapped error.
-    pub fn type_name(&self) -> &'static str;
-}
-```
-
-- **Type Erasure:** Allows the router to handle different error types from handlers uniformly.
-- **Recovery:** Use `get::<MyError>()` or `remove::<MyError>()` to attempt retrieving the original error type you returned from the handler.
-- **Serialization:** By default, serializes to a string indicating the contained type name (used when converting to `RpcError`).
-
-### `HandlerResult<T>`
-
-The required return type alias for RPC handler functions.
-
-```rust
-pub type HandlerResult<T> = Result<T, HandlerError>;
-```
-
-- **Usage:** Your `async fn` handlers must return `HandlerResult<S>` where `S: Serialize`.
-
-### `IntoHandlerError` Trait
-
-Trait used to convert various error types into `HandlerError`.
-
-```rust
-pub trait IntoHandlerError where Self: Sized + Send + Sync + 'static {
-    /// Default implementation wraps `self` in `HandlerError::new(self)`.
-    fn into_handler_error(self) -> HandlerError;
-}
-
-// Blanket implementations provided for:
-// - HandlerError (identity conversion)
-// - String
-// - &'static str
-// - Value
-// - Any type T that is Sized + Send + Sync + 'static (via the default method)
-```
-
-- **Convenience:** Allows returning types like `String` directly from a handler using `?` (as long as the handler signature is `HandlerResult<T>`). The `?` operator triggers the conversion via `From<E> for HandlerError`, which uses this trait.
-- **Custom Errors:** Your custom error types automatically implement this trait via the blanket implementation, enabling them to be returned directly from handlers.
-
-### `RpcHandlerError` Derive Macro
-
-A convenience macro to automatically implement `IntoHandlerError` and potentially `std::error::Error` and `Display` for your custom error enum.
-
-```rust
-use rpc_router::RpcHandlerError;
-use thiserror::Error; // Example using thiserror
-
-#[derive(Debug, Error, RpcHandlerError)] // Derives IntoHandlerError
-enum MyCustomError {
-    #[error("Something failed: {0}")]
-    Failed(String),
-    #[error("IO Error")]
-    Io(#[from] std::io::Error), // Example using thiserror's from
-}
-```
-
-- **Simplifies Boilerplate:** Ensures your error can be seamlessly returned from handlers.
-
----
-
-## Helper Macros
-
-Macros for reducing boilerplate during setup.
-
-### `router_builder!`
-
-Creates a `RouterBuilder` and adds handlers/resources concisely.
-
-```rust
-// Pattern 1: Just handlers (function names become method names)
-let router = router_builder!(handler_one, handler_two);
-
-// Pattern 2: Handlers and resources
-let router = router_builder!(
-    handlers: [handler_one, handler_two],
-    resources: [MyResource::new(), AnotherResource::default()]
-);
-
-// Pattern 3: Just handlers (alternative syntax)
-let router = router_builder!(handlers: [handler_one, handler_two]);
-```
-
-- **Syntax:** Supports multiple patterns for defining handlers and associated resources.
-
-### `resources_builder!`
-
-Creates a `ResourcesBuilder` and adds resources concisely.
-
-```rust
-let resources = resources_builder!(
-    MyResource::new(),
-    AnotherResource::default()
-).build();
-```
-
-- **Simplified Resource Setup:** Useful for creating `Resources` instances independently.
+This overview covers the primary public APIs. Refer to the specific module documentation (`src/.../mod.rs` or individual files) for more granular details.

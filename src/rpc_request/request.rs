@@ -35,53 +35,66 @@ impl RpcRequest {
 		};
 
 		// -- Check and remove `jsonrpc` property
-		let version_validation = match obj.remove("jsonrpc") {
-			Some(version) => {
-				if version.as_str().unwrap_or_default() == "2.0" {
-					Ok(())
-				} else {
-					let (id_val, method) = extract_id_value_and_method(&obj);
-					Err(RpcRequestParsingError::VersionInvalid {
-						id: id_val,
-						method,
-						version,
-					})
+		if checks.contains(RpcRequestCheckFlags::VERSION) {
+			// -- Check and remove `jsonrpc` property
+			match obj.remove("jsonrpc") {
+				Some(version) => {
+					if version.as_str().unwrap_or_default() != "2.0" {
+						let (id_val, method) = extract_id_value_and_method(obj);
+						return Err(RpcRequestParsingError::VersionInvalid {
+							id: id_val,
+							method,
+							version,
+						});
+					}
+				}
+				None => {
+					let (id_val, method) = extract_id_value_and_method(obj);
+					return Err(RpcRequestParsingError::VersionMissing { id: id_val, method });
 				}
 			}
-			None => {
-				let (id_val, method) = extract_id_value_and_method(&obj);
-				Err(RpcRequestParsingError::VersionMissing { id: id_val, method })
-			}
-		};
-		version_validation?;
+		}
+
+		// -- Extract Raw Value Id for now
+		let rpc_id_value: Option<Value> = obj.remove("id");
 
 		// -- Check method presence and type
 		let method = match obj.remove("method") {
 			None => {
-				let id_val = obj.get_mut("id").map(Value::take);
-				return Err(RpcRequestParsingError::MethodMissing { id: id_val });
+				return Err(RpcRequestParsingError::MethodMissing { id: rpc_id_value });
 			}
 			Some(method_val) => match method_val {
 				Value::String(method_name) => method_name,
 				other => {
-					let id = obj.get("id").cloned();
-					return Err(RpcRequestParsingError::MethodInvalidType { id, method: other });
+					return Err(RpcRequestParsingError::MethodInvalidType {
+						id: rpc_id_value,
+						method: other,
+					});
 				}
 			},
 		};
 
-		// -- Check id presence and parse it
-		let id = match obj.get_mut("id").map(Value::take) {
-			Some(id_value) => RpcId::from_value(id_value)?,
+		// -- Process RpcId
+		// Note: here if we do not have the check_id flag, we are permissive on the rpc_id, and
+		let check_id = checks.contains(RpcRequestCheckFlags::ID);
+		let id = match rpc_id_value {
 			None => {
-				// Note: Technically, JSON-RPC 2.0 allows requests without IDs (Notifications).
-				// However, this router is primarily designed for Request/Response cycles.
-				// If Notification support is added later, this check needs revision.
-				// For now, we mandate an ID.
-				return Err(RpcRequestParsingError::IdMissing {
-					method: get_method(&obj),
-				});
+				if check_id {
+					return Err(RpcRequestParsingError::IdMissing { method: Some(method) });
+				} else {
+					RpcId::Null
+				}
 			}
+			Some(id_value) => match RpcId::from_value(id_value) {
+				Ok(rpc_id) => rpc_id,
+				Err(err) => {
+					if check_id {
+						return Err(err);
+					} else {
+						RpcId::Null
+					}
+				}
+			},
 		};
 
 		// -- Extract params (can be absent, which is valid)
@@ -95,26 +108,25 @@ bitflags::bitflags! {
 	/// Represents a set of flags.
 	#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 	pub struct RpcRequestCheckFlags: u32 {
-		/// Check if the
+		/// Check the `jsonrpc = "2.0"` property
 		const VERSION = 0b00000001;
-		/// The value `B`, at bit position `1`.
+		/// Check that `id` property is a valid rpc id (string, number, or null)
+		/// NOTE: Does not support floating number (although the spec does)
 		const ID = 0b00000010;
 
+		/// Check all, te ID and VERSION
 		const ALL = Self::VERSION.bits() | Self::ID.bits();
 	}
 }
 
 // region:    --- Support
 
-// Returns the eventual (id_value, method) tuple from a reference
-fn extract_id_value_and_method(obj: &serde_json::Map<String, Value>) -> (Option<Value>, Option<String>) {
-	let id = obj.get("id").cloned();
-	let method = obj.get("method").and_then(|v| v.as_str().map(|s| s.to_string()));
+// Extract (remove) the id and method.
+fn extract_id_value_and_method(mut obj: serde_json::Map<String, Value>) -> (Option<Value>, Option<String>) {
+	let id = obj.remove("id");
+	// for now be permisive with the method name, so as_str
+	let method = obj.remove("method").and_then(|v| v.as_str().map(|s| s.to_string()));
 	(id, method)
-}
-
-fn get_method(obj: &serde_json::Map<String, Value>) -> Option<String> {
-	obj.get("method").and_then(|v| v.as_str().map(|s| s.to_string()))
 }
 
 /// Convenient TryFrom, and will execute the Request::from_value,
