@@ -36,7 +36,7 @@ mod router;
 
 // -- Flatten
 pub use self::error::{Error, Result};
-pub use handler::{Handler, HandlerError, HandlerResult, IntoHandlerError};
+pub use handler::{Handler, HandlerError, HandlerResult, IntoHandlerError, RpcHandlerWrapperTrait};
 pub use params::*;
 pub use request::*;
 pub use resource::*;
