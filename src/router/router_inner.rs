@@ -1,5 +1,5 @@
 use crate::handler::RpcHandlerWrapperTrait;
-use crate::{CallError, CallResponse, CallResult, Error, Request, Resources};
+use crate::{CallError, CallResponse, CallResult, Error, Request, Resources, RpcId};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -46,32 +46,33 @@ impl RouterInner {
 	pub async fn call(&self, resources: Resources, rpc_request: Request) -> CallResult {
 		let Request { id, method, params } = rpc_request;
 
-		self.call_route(resources, Some(id), method, params).await
+		self.call_route(resources, id, method, params).await
 	}
 
-	/// Performs the RPC call for a given Request object, which contains the `id`, method name, and parameters.
+	/// Performs the RPC call given the id, method, and params.
 	///
 	/// - method: The json-rpc method name.
-	/// -     id: The json-rpc request `.id`, which should be sent by the client.
-	///           It is required to echo it back in the json-rpc response.
-	///           Can be `Value::Null`, and if None, it will be set to `Value::Null`
-	/// - params: The optional json-rpc params
+	/// -     id: The json-rpc request ID. If None, defaults to RpcId::Null.
+	/// - params: The optional json-rpc params.
 	///
-	/// Returns an ResponseResult, where either the success value (Response) or the error (ResponseError)
-	/// will echo back the `id` and `method` part of their construct
+	/// Returns a CallResult, where either the success value (CallResponse) or the error (CallError)
+	/// will include the original `id` and `method`.
 	pub async fn call_route(
 		&self,
 		resources: Resources,
-		id: Option<Value>,
+		id: RpcId,
 		method: impl Into<String>,
 		params: Option<Value>,
 	) -> CallResult {
 		let method = method.into();
-		let id = id.unwrap_or(Value::Null);
 
 		if let Some(route) = self.route_by_name.get(method.as_str()) {
 			match route.call(resources, params).await {
-				Ok(value) => Ok(CallResponse { id, method, value }),
+				Ok(value) => Ok(CallResponse {
+					id: id.clone(), // Clone id for the response
+					method: method.clone(),
+					value,
+				}),
 				Err(error) => Err(CallError { id, method, error }),
 			}
 		} else {
@@ -83,3 +84,4 @@ impl RouterInner {
 		}
 	}
 }
+

@@ -1,10 +1,9 @@
-use crate::CallResponse;
-use serde_json::Value;
+use crate::{CallResponse, RpcId};
 
 pub type CallResult = core::result::Result<CallResponse, CallError>;
 
 /// The Error type returned by `rpc_router.call...` functions.
-///  
+///
 /// NOTE: CallResponse & CallError
 ///       are not designed to be the JSON-RPC Response
 ///       or Error, but to provide the necessary context
@@ -12,7 +11,7 @@ pub type CallResult = core::result::Result<CallResponse, CallError>;
 ///       context for tracing/login.
 #[derive(Debug)]
 pub struct CallError {
-	pub id: Value,
+	pub id: RpcId,
 	pub method: String,
 	pub error: crate::Error,
 }
@@ -28,3 +27,4 @@ impl core::fmt::Display for CallError {
 impl std::error::Error for CallError {}
 
 // endregion: --- Error Boilerplate
+

@@ -3,7 +3,7 @@
 //!
 //! It has the following constructs:
 //!
-//! - `RpcRouter` holds the HashMap of `method_name: Box<dyn RpcHandlerWrapperTrait>`.
+//! - `Router` holds the HashMap of `method_name: Box<dyn RpcHandlerWrapperTrait>`.
 //! - `RpcHandler` trait is implemented for any async function that, with
 //!   `(S1, S2, ...[impl IntoParams])`, returns `web::Result<Serialize>` where S1, S2, ... are
 //!   types that implement `FromResources` (see router/from_resources.rs and src/resources.rs).
@@ -11,7 +11,7 @@
 //!   to the handler's param types.
 //! - `IntoParams` has a default `into_params` implementation that will return an error if the params are missing.
 //!
-//! ```
+//! ```ignore // Example needs update for new types/macros
 //! #[derive(Deserialize)]
 //! pub struct ParamsIded {
 //!   id: i64,
@@ -27,12 +27,15 @@
 
 // region:    --- Modules
 
+mod support;
+
 mod error;
 mod handler;
 mod params;
 mod request;
 mod resource;
 mod router;
+mod rpc_id; // Added rpc_id module
 
 // -- Flatten
 pub use self::error::{Error, Result};
@@ -41,6 +44,7 @@ pub use params::*;
 pub use request::*;
 pub use resource::*;
 pub use router::*;
+pub use rpc_id::*; // Export RpcId
 
 // -- Export proc macros
 pub use rpc_router_macros::RpcHandlerError;

@@ -16,29 +16,41 @@ use serde_with::{DisplayFromStr, serde_as};
 #[serde_as]
 #[derive(Debug, Serialize)]
 pub enum RequestParsingError {
+	RequestInvalidType {
+		actual_type: String,
+	},
+
 	VersionMissing {
-		id: Option<Value>,
+		id: Option<Value>, // Keep Value here as RpcId parsing might not have happened yet
 		method: Option<String>,
 	},
 	VersionInvalid {
-		id: Option<Value>,
+		id: Option<Value>, // Keep Value here
 		method: Option<String>,
 		version: Value,
 	},
 
 	MethodMissing {
-		id: Option<Value>,
+		id: Option<Value>, // Keep Value here
 	},
 	MethodInvalidType {
-		id: Option<Value>,
+		id: Option<Value>, // Keep Value here
 		method: Value,
+	},
+
+	MethodInvalid {
+		actual: String,
 	},
 
 	IdMissing {
 		method: Option<String>,
 	},
+	IdInvalid {
+		actual: String,
+		cause: String,
+	},
 
-	Parse(#[serde_as(as = "DisplayFromStr")] serde_json::Error),
+	Parse(#[serde_as(as = "DisplayFromStr")] serde_json::Error), // Generic serde error if basic JSON is invalid
 }
 
 impl core::fmt::Display for RequestParsingError {

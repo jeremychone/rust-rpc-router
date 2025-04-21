@@ -1,7 +1,7 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{FromResources, Handler, HandlerResult, IntoParams, Request, Resources, Router};
+use rpc_router::{FromResources, Handler, HandlerResult, IntoParams, Request, Resources, Router, RpcId};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::task::JoinSet;
@@ -84,14 +84,14 @@ async fn test_async_calls() -> Result<()> {
 	}
 
 	// -- Check
-	let mut fx_rpc_id = 0;
+	let mut fx_rpc_id_num = 0;
 	while let Some(res) = joinset.join_next().await {
 		let rpc_response = res??;
 
 		// check rpc_id
-		let fx_rpc_id_value = json!(fx_rpc_id);
-		assert_eq!(rpc_response.id, fx_rpc_id_value);
-		fx_rpc_id += 1;
+		let fx_rpc_id = RpcId::from_value(json!(fx_rpc_id_num))?;
+		assert_eq!(rpc_response.id, fx_rpc_id);
+		fx_rpc_id_num += 1;
 
 		// check result value
 		let res = rpc_response.value;

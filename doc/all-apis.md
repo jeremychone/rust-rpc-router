@@ -73,13 +73,29 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
     - `Option<D>`  
     - `serde_json::Value`
 
-- **Request Types**
-  
+- **Request & ID Types**
+
+  - `rpc_router::RpcId`
+    Enum representing a JSON-RPC request ID (String, Number, Null).
+    ```rust
+    pub enum RpcId {
+        String(Arc<str>),
+        Number(i64),
+        Null,
+    }
+    impl RpcId {
+        pub fn from_value(value: Value) -> Result<Self, RequestParsingError>;
+        pub fn to_value(&self) -> Value;
+    }
+    // Also implements Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Display, Default
+    // Also implements From<String>, From<&str>, From<i64>, From<i32>, From<u32>
+    ```
+
   - `rpc_router::Request`  
     Represents a JSON‑RPC 2.0 request:
     ```rust
     pub struct Request {
-        pub id: Value,
+        pub id: RpcId, // Changed from Value
         pub method: String,
         pub params: Option<Value>,
     }
@@ -89,17 +105,20 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
     ```
   
   - `impl TryFrom<serde_json::Value> for Request`  
-    Convenient conversion from a raw `Value`, performing JSON‑RPC 2.0 validation.
+    Convenient conversion from a raw `Value`, performing JSON‑RPC 2.0 validation (including ID parsing).
   
   - `rpc_router::RequestParsingError`  
     Enum of request parsing failures:
     ```rust
     pub enum RequestParsingError {
+        RequestInvalidType { actual_type: String },
         VersionMissing { id: Option<Value>, method: Option<String> },
         VersionInvalid { id: Option<Value>, method: Option<String>, version: Value },
         MethodMissing { id: Option<Value> },
         MethodInvalidType { id: Option<Value>, method: Value },
+        MethodInvalid { actual: String }, // Note: Method name checked by Router, not here
         IdMissing { method: Option<String> },
+        IdInvalid { actual: String, cause: String }, // Added RpcId parsing failure
         Parse(serde_json::Error),
     }
     ```
@@ -117,7 +136,7 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
     ```rust
     pub struct ResourcesBuilder { /* … */ }
     impl ResourcesBuilder {
-        pub fn builder() -> ResourcesBuilder;
+        // Default::default() can be used instead of builder()
         pub fn append<T>(self, val: T) -> Self;
         pub fn append_mut<T>(&mut self, val: T);
         pub fn get<T>(&self) -> Option<T>;
@@ -146,8 +165,8 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
         pub fn builder() -> RouterBuilder;
         pub async fn call(&self, request: Request) -> CallResult;
         pub async fn call_with_resources(&self, request: Request, additional: Resources) -> CallResult;
-        pub async fn call_route(&self, id: Option<Value>, method: impl Into<String>, params: Option<Value>) -> CallResult;
-        pub async fn call_route_with_resources(&self, id: Option<Value>, method: impl Into<String>, params: Option<Value>, additional: Resources) -> CallResult;
+        pub async fn call_route(&self, id: Option<RpcId>, method: impl Into<String>, params: Option<Value>) -> CallResult; // Changed id type
+        pub async fn call_route_with_resources(&self, id: Option<RpcId>, method: impl Into<String>, params: Option<Value>, additional: Resources) -> CallResult; // Changed id type
     }
     impl FromResources for Router {}
     ```
@@ -161,7 +180,7 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
         pub fn append<F, T, P, R>(self, name: &'static str, handler: F) -> Self
             where F: Handler<T, P, R> + Clone + Send + Sync + 'static, …;
         pub fn extend(self, other: RouterBuilder) -> Self;
-        pub fn append_resource<T>(self, val: T) -> Self where T: FromResources + Clone + Send + Sync + 'static;
+        pub fn append_resource<T>(self, val: T) -> Self where T: Clone + Send + Sync + 'static; // Removed FromResources constraint (added in .build())
         pub fn extend_resources(self, resources: Option<ResourcesBuilder>) -> Self;
         pub fn set_resources(self, resources: ResourcesBuilder) -> Self;
         pub fn build(self) -> Router;
@@ -173,7 +192,7 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
   - `rpc_router::CallResponse`  
     ```rust
     pub struct CallResponse {
-        pub id: Value,
+        pub id: RpcId, // Changed from Value
         pub method: String,
         pub value: Value,
     }
@@ -182,7 +201,7 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
   - `rpc_router::CallError`  
     ```rust
     pub struct CallError {
-        pub id: Value,
+        pub id: RpcId, // Changed from Value
         pub method: String,
         pub error: rpc_router::Error,
     }
@@ -195,6 +214,7 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
 
 - `router_builder!(handlers: [...], resources: [...])`  
   Macro to register multiple handlers and optional resources in one call.
+  Also supports `router_builder!(handler1, handler2)` and `router_builder!(handlers: [...])`.
 
 - `resources_builder!(x1, x2, …)`  
   Macro to build a `ResourcesBuilder` from a list of values.
@@ -202,10 +222,11 @@ This document lists all public APIs exported by the `rpc-router` crate, includin
 ## Derive (Proc) Macros
 
 - `#[derive(RpcHandlerError)]`  
-  Implements `IntoHandlerError` for an error enum/struct.
+  Implements `IntoHandlerError` for an error enum/struct. Requires `Debug + Send + Sync + 'static`.
 
 - `#[derive(RpcParams)]`  
-  Implements `IntoParams` for a `serde::Deserialize` type.
+  Implements `IntoParams` for a `serde::Deserialize` type. Requires `DeserializeOwned + Send`.
 
 - `#[derive(RpcResource)]`  
-  Implements `FromResources` for a `Clone + Send + Sync + 'static` type.
+  Implements `FromResources` for a type. Requires `Clone + Send + Sync + 'static`.
+

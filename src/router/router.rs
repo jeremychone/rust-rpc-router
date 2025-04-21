@@ -1,6 +1,6 @@
 use crate::router::router_inner::RouterInner;
 use crate::{CallResult, Request, ResourcesInner, RouterBuilder};
-use crate::{FromResources, Resources};
+use crate::{FromResources, Resources, RpcId};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -12,8 +12,8 @@ pub struct Router {
 
 //-- Builder
 impl Router {
-	/// Returns a new `ResourcesBuilder`.
-	/// This is equivalent to calling `Resources::default()`.
+	/// Returns a new `RouterBuilder`.
+	/// This is equivalent to calling `Router::builder()`.
 	pub fn builder() -> RouterBuilder {
 		RouterBuilder::default()
 	}
@@ -29,9 +29,9 @@ impl Router {
 	///
 	/// - Returns an CallResult that echoes the `id` and `method`, and includes the `Result<Value, rpc_router::Error>` result.
 	///
-	/// - The `rpc_router::Error` includes a variant `rpc_router::Error::Handler(RpcHandlerError)`,
-	///   where `RpcHandlerError` allows retrieval of the application error returned by the handler
-	///   through `RpcHandlerError::get::<T>(&self) -> Option<T>`.
+	/// - The `rpc_router::Error` includes a variant `rpc_router::Error::Handler(HandlerError)`,
+	///   where `HandlerError` allows retrieval of the application error returned by the handler
+	///   through `HandlerError::get::<T>(&self) -> Option<T>`.
 	///   This mechanism enables application RPC handlers to return specific application errors while still utilizing
 	///   the `rpc-router` result structure, thereby allowing them to retrieve their specific error type.
 	///
@@ -58,14 +58,18 @@ impl Router {
 	/// To add additional resources on top of the router's resources, call `.call_route_with_resources(request, resources)`
 	///
 	/// - method: The json-rpc method name.
-	/// -     id: The json-rpc request `.id`, which should be sent by the client.
-	///           It is required to echo it back in the json-rpc response.
-	///           Can be `Value::Null`, and if None, it will be set to `Value::Null`
+	/// -     id: The json-rpc request ID. If None, defaults to RpcId::Null.
 	/// - params: The optional json-rpc params
 	///
 	/// Returns an CallResult, where either the success value (CallResponse) or the error (CallError)
 	/// will echo back the `id` and `method` part of their construct
-	pub async fn call_route(&self, id: Option<Value>, method: impl Into<String>, params: Option<Value>) -> CallResult {
+	pub async fn call_route(
+		&self,
+		id: Option<RpcId>,
+		method: impl Into<String>,
+		params: Option<Value>,
+	) -> CallResult {
+		let id = id.unwrap_or_default(); // Default to RpcId::Null if None
 		self.inner.call_route(self.base_resources.clone(), id, method, params).await
 	}
 
@@ -76,12 +80,13 @@ impl Router {
 	///       will try the base router resources.
 	pub async fn call_route_with_resources(
 		&self,
-		id: Option<Value>,
+		id: Option<RpcId>,
 		method: impl Into<String>,
 		params: Option<Value>,
 		additional_resources: Resources,
 	) -> CallResult {
 		let resources = self.compute_call_resources(additional_resources);
+		let id = id.unwrap_or_default(); // Default to RpcId::Null if None
 
 		self.inner.call_route(resources, id, method, params).await
 	}
@@ -91,13 +96,13 @@ impl Router {
 impl Router {
 	/// For specific or advanced use cases.
 	///
-	/// Use `RpcRouterBuilder::default()...build()` if unsure.
+	/// Use `RouterBuilder::default()...build()` if unsure.
 	///
-	/// Creates an `RpcRouter` from its inner data.
+	/// Creates an `Router` from its inner data.
 	///
 	/// Note: This is intended for situations where a custom builder
-	///       workflow is needed. The recommended method for creating an `RpcRouter`
-	///       is via the `RpcRouterBuilder`.
+	///       workflow is needed. The recommended method for creating an `Router`
+	///       is via the `RouterBuilder`.
 	pub(crate) fn new(inner: RouterInner, resources_inner: ResourcesInner) -> Self {
 		Self {
 			inner: Arc::new(inner),
@@ -113,3 +118,4 @@ impl Router {
 		}
 	}
 }
+
