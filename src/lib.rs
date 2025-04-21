@@ -32,19 +32,19 @@ mod support;
 mod error;
 mod handler;
 mod params;
-mod request;
 mod resource;
 mod router;
-mod rpc_id; // Added rpc_id module
+mod rpc_id;
+mod rpc_request; // Added rpc_id module
 
 // -- Flatten
 pub use self::error::{Error, Result};
 pub use handler::{Handler, HandlerError, HandlerResult, IntoHandlerError, RpcHandlerWrapperTrait};
 pub use params::*;
-pub use request::*;
 pub use resource::*;
 pub use router::*;
-pub use rpc_id::*; // Export RpcId
+pub use rpc_id::*;
+pub use rpc_request::*; // Export RpcId
 
 // -- Export proc macros
 pub use rpc_router_macros::RpcHandlerError;

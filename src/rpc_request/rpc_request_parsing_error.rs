@@ -15,7 +15,7 @@ use serde_with::{DisplayFromStr, serde_as};
 ///       the capture of indefinitely large values in the logs.
 #[serde_as]
 #[derive(Debug, Serialize)]
-pub enum RequestParsingError {
+pub enum RpcRequestParsingError {
 	RequestInvalidType {
 		actual_type: String,
 	},
@@ -53,10 +53,10 @@ pub enum RequestParsingError {
 	Parse(#[serde_as(as = "DisplayFromStr")] serde_json::Error), // Generic serde error if basic JSON is invalid
 }
 
-impl core::fmt::Display for RequestParsingError {
+impl core::fmt::Display for RpcRequestParsingError {
 	fn fmt(&self, fmt: &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error> {
 		write!(fmt, "{self:?}")
 	}
 }
 
-impl std::error::Error for RequestParsingError {}
+impl std::error::Error for RpcRequestParsingError {}

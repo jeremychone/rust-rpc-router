@@ -1,4 +1,4 @@
-use rpc_router::{FromResources, IntoParams, Request, Router, RpcHandlerError, RpcParams, RpcResource, router_builder};
+use rpc_router::{FromResources, IntoParams, RpcRequest, Router, RpcHandlerError, RpcParams, RpcResource, router_builder};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::task::JoinSet;
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		.build();
 
 	// -- Simulate RPC request intakes (typically manage by the Web/IPC layer)
-	let rpc_requests: Vec<Request> = vec![
+	let rpc_requests: Vec<RpcRequest> = vec![
 		// create_task request
 		json!({
 			"jsonrpc": "2.0",

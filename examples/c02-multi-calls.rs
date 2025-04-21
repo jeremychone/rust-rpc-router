@@ -1,7 +1,7 @@
 pub type Result<T> = core::result::Result<T, Error>;
 pub type Error = Box<dyn std::error::Error>; // For early dev.
 
-use rpc_router::{Handler, IntoParams, Request, Resources, Router, RpcResource};
+use rpc_router::{Handler, IntoParams, Resources, Router, RpcRequest, RpcResource};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::task::JoinSet;
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
 	let mut joinset = JoinSet::new();
 	for idx in 0..2 {
 		let rpc_router = rpc_router.clone();
-		let rpc_request: Request = json!({
+		let rpc_request: RpcRequest = json!({
 			"jsonrpc": "2.0",
 			"id": idx, // the json rpc id, that will get echoed back, can be null
 			"method": "get_task",

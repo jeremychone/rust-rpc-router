@@ -1,28 +1,28 @@
 use crate::support::get_json_type;
-use crate::{RequestParsingError, RpcId};
+use crate::{RpcId, RpcRequestParsingError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The raw JSON-RPC request object, serving as the foundation for RPC routing.
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct Request {
+pub struct RpcRequest {
 	pub id: RpcId,
 	pub method: String,
 	pub params: Option<Value>,
 }
 
-impl Request {
+impl RpcRequest {
 	/// Will perform the `jsonrpc: "2.0"` validation and parse the request.
 	/// If this is not desired, using the standard `serde_json::from_value` would do the parsing
 	/// and ignore `jsonrpc` property.
-	pub fn from_value(value: Value) -> Result<Request, RequestParsingError> {
+	pub fn from_value(value: Value) -> Result<RpcRequest, RpcRequestParsingError> {
 		// TODO: When capturing the Value, we might implement a safeguard to prevent capturing Value Object or arrays
 		//       as they can be indefinitely large. One technical solution would be to replace the value with a String,
 		//       using something like `"[object/array redacted, 'id' should be of type number, string or null]"` as the string.
 		let value_type = get_json_type(&value);
 
 		let Value::Object(mut obj) = value else {
-			return Err(RequestParsingError::RequestInvalidType {
+			return Err(RpcRequestParsingError::RequestInvalidType {
 				actual_type: value_type.to_string(),
 			});
 		};
@@ -34,7 +34,7 @@ impl Request {
 					Ok(())
 				} else {
 					let (id_val, method) = extract_id_value_and_method(&obj);
-					Err(RequestParsingError::VersionInvalid {
+					Err(RpcRequestParsingError::VersionInvalid {
 						id: id_val,
 						method,
 						version,
@@ -43,7 +43,7 @@ impl Request {
 			}
 			None => {
 				let (id_val, method) = extract_id_value_and_method(&obj);
-				Err(RequestParsingError::VersionMissing { id: id_val, method })
+				Err(RpcRequestParsingError::VersionMissing { id: id_val, method })
 			}
 		};
 		version_validation?;
@@ -52,13 +52,13 @@ impl Request {
 		let method = match obj.remove("method") {
 			None => {
 				let id_val = obj.get_mut("id").map(Value::take);
-				return Err(RequestParsingError::MethodMissing { id: id_val });
+				return Err(RpcRequestParsingError::MethodMissing { id: id_val });
 			}
 			Some(method_val) => match method_val {
 				Value::String(method_name) => method_name,
 				other => {
 					let id = obj.get("id").cloned();
-					return Err(RequestParsingError::MethodInvalidType { id, method: other });
+					return Err(RpcRequestParsingError::MethodInvalidType { id, method: other });
 				}
 			},
 		};
@@ -71,7 +71,7 @@ impl Request {
 				// However, this router is primarily designed for Request/Response cycles.
 				// If Notification support is added later, this check needs revision.
 				// For now, we mandate an ID.
-				return Err(RequestParsingError::IdMissing {
+				return Err(RpcRequestParsingError::IdMissing {
 					method: get_method(&obj),
 				});
 			}
@@ -80,7 +80,7 @@ impl Request {
 		// -- Extract params (can be absent, which is valid)
 		let params = obj.get_mut("params").map(Value::take);
 
-		Ok(Request { id, method, params })
+		Ok(RpcRequest { id, method, params })
 	}
 }
 
@@ -97,9 +97,9 @@ fn get_method(obj: &serde_json::Map<String, Value>) -> Option<String> {
 
 /// Convenient TryFrom, and will execute the Request::from_value,
 /// which will perform the version validation.
-impl TryFrom<Value> for Request {
-	type Error = RequestParsingError;
-	fn try_from(value: Value) -> Result<Request, RequestParsingError> {
-		Request::from_value(value)
+impl TryFrom<Value> for RpcRequest {
+	type Error = RpcRequestParsingError;
+	fn try_from(value: Value) -> Result<RpcRequest, RpcRequestParsingError> {
+		RpcRequest::from_value(value)
 	}
 }

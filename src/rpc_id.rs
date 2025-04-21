@@ -1,4 +1,4 @@
-use crate::RequestParsingError;
+use crate::RpcRequestParsingError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::sync::Arc;
@@ -41,15 +41,15 @@ impl RpcId {
 
 	/// Attempts to convert a `serde_json::Value` into an `RpcId`.
 	/// Returns `Error::RpcIdInvalid` if the `value` is not a String, Number, or Null.
-	pub fn from_value(value: Value) -> core::result::Result<Self, RequestParsingError> {
+	pub fn from_value(value: Value) -> core::result::Result<Self, RpcRequestParsingError> {
 		match value {
 			Value::String(s) => Ok(RpcId::String(s.into())),
-			Value::Number(n) => n.as_i64().map(RpcId::Number).ok_or_else(|| RequestParsingError::IdInvalid {
+			Value::Number(n) => n.as_i64().map(RpcId::Number).ok_or_else(|| RpcRequestParsingError::IdInvalid {
 				actual: format!("{n}"),
 				cause: "Number is not a valid i64".into(),
 			}),
 			Value::Null => Ok(RpcId::Null),
-			_ => Err(RequestParsingError::IdInvalid {
+			_ => Err(RpcRequestParsingError::IdInvalid {
 				actual: format!("{value:?}"),
 				cause: "ID must be a String, Number, or Null".into(),
 			}),
@@ -177,7 +177,7 @@ mod tests {
 		for value in invalid_values {
 			let res = RpcId::from_value(value.clone());
 			assert!(
-				matches!(res, Err(RequestParsingError::IdInvalid { .. })),
+				matches!(res, Err(RpcRequestParsingError::IdInvalid { .. })),
 				"Expected RpcIdInvalid for value: {:?}",
 				value
 			);

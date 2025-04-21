@@ -1,5 +1,5 @@
 use crate::router::router_inner::RouterInner;
-use crate::{CallResult, Request, ResourcesInner, RouterBuilder};
+use crate::{CallResult, ResourcesInner, RouterBuilder, RpcRequest};
 use crate::{FromResources, Resources, RpcId};
 use serde_json::Value;
 use std::sync::Arc;
@@ -35,7 +35,7 @@ impl Router {
 	///   This mechanism enables application RPC handlers to return specific application errors while still utilizing
 	///   the `rpc-router` result structure, thereby allowing them to retrieve their specific error type.
 	///
-	pub async fn call(&self, rpc_request: Request) -> CallResult {
+	pub async fn call(&self, rpc_request: RpcRequest) -> CallResult {
 		self.inner.call(self.base_resources.clone(), rpc_request).await
 	}
 
@@ -44,7 +44,7 @@ impl Router {
 	///
 	/// Note: The router will first try to get the resource from the overlay, and then,
 	///       will try the base router resources.
-	pub async fn call_with_resources(&self, rpc_request: Request, additional_resources: Resources) -> CallResult {
+	pub async fn call_with_resources(&self, rpc_request: RpcRequest, additional_resources: Resources) -> CallResult {
 		let resources = self.compute_call_resources(additional_resources);
 
 		self.inner.call(resources, rpc_request).await
@@ -63,12 +63,7 @@ impl Router {
 	///
 	/// Returns an CallResult, where either the success value (CallResponse) or the error (CallError)
 	/// will echo back the `id` and `method` part of their construct
-	pub async fn call_route(
-		&self,
-		id: Option<RpcId>,
-		method: impl Into<String>,
-		params: Option<Value>,
-	) -> CallResult {
+	pub async fn call_route(&self, id: Option<RpcId>, method: impl Into<String>, params: Option<Value>) -> CallResult {
 		let id = id.unwrap_or_default(); // Default to RpcId::Null if None
 		self.inner.call_route(self.base_resources.clone(), id, method, params).await
 	}
@@ -118,4 +113,3 @@ impl Router {
 		}
 	}
 }
-

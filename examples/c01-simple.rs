@@ -1,4 +1,4 @@
-use rpc_router::{FromResources, Handler, HandlerResult, IntoParams, Request, Resources, Router};
+use rpc_router::{FromResources, Handler, HandlerResult, IntoParams, Resources, Router, RpcRequest};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		.build();
 
 	// -- Build the reqeust
-	let rpc_request: Request = json!({
+	let rpc_request: RpcRequest = json!({
 		"jsonrpc": "2.0",
 		"id": null, // the json rpc id, that will get echoed back, can be null
 		"method": "increment_id",

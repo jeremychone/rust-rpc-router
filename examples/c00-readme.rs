@@ -1,7 +1,7 @@
 #![allow(unused)] // For examples.
 
 use rpc_router::{
-	CallResponse, FromResources, IntoParams, Request, Resources, RpcHandlerError, RpcParams, RpcResource,
+	CallResponse, FromResources, IntoParams, RpcRequest, Resources, RpcHandlerError, RpcParams, RpcResource,
 	resources_builder, router_builder,
 };
 use serde::{Deserialize, Serialize};
@@ -68,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// Can do the same with `Router::builder().append()/append_resource()`
 
 	// Create and parse rpc request example.
-	let rpc_request: Request = json!({
+	let rpc_request: RpcRequest = json!({
 		"jsonrpc": "2.0",
 		"id": "some-client-req-id", // the json rpc id, that will get echoed back, can be null
 		"method": "get_task",

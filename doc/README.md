@@ -10,11 +10,12 @@ The core goal is to provide a type-safe and ergonomic way to build JSON-RPC APIs
 
 -   **JSON-RPC 2.0**: The library processes requests adhering to the JSON-RPC 2.0 specification, expecting `jsonrpc: "2.0"`, `method`, `id`, and optional `params`.
 -   **`RpcId`**: Represents the JSON-RPC request ID, which can be a String, Number, or Null. Ensures type safety for IDs.
+-   **`RpcRequest`**: Represents a validated JSON-RPC 2.0 request, containing a type-safe `RpcId`, method name, and optional parameters. Parsing is done via `RpcRequest::from_value` or `TryFrom<Value>`.
 -   **Routing**: The `Router` maps incoming request `method` names to specific handler functions.
 -   **Handlers**: Handlers are `async fn` functions that contain your application logic. They receive necessary resources and request parameters as arguments.
 -   **Resources**: These represent shared state or dependencies (e.g., database connections, configuration objects, service clients) that handlers need. Resources are managed by the `Router` and accessed by handlers type-safely.
--   **Parameters (`params`)**: The JSON `params` field in the request is automatically deserialized into a specific Rust type defined by the handler function.
--   **Error Handling**: Handlers return a `Result<T, AppError>`, where `AppError` is your application-specific error type. The library wraps this in its own error types (`HandlerError`, `rpc_router::Error`) to provide context while allowing you to easily extract your original error.
+-   **Parameters (`params`)**: The JSON `params` field in the request is automatically deserialized into a specific Rust type defined by the handler function using the `IntoParams` trait.
+-   **Error Handling**: Handlers return a `Result<T, AppError>`, where `AppError` is your application-specific error type implementing `IntoHandlerError`. The library wraps this in its own error types (`HandlerError`, `rpc_router::Error`) to provide context while allowing you to easily extract your original error.
 
 ## Key Constructs
 
@@ -24,13 +25,13 @@ Here are the central types and traits you'll interact with:
     -   The main entry point for handling requests.
     -   Holds the registered method routes and common resources.
     -   Created using `Router::builder()` or the `router_builder!` macro.
-    -   Dispatches requests via `.call(request)` or `.call_with_resources(request, additional_resources)`.
+    -   Dispatches requests via `.call(request: RpcRequest)` or `.call_with_resources(request: RpcRequest, additional_resources: Resources)`.
 
     ```rust
     // Conceptual usage
     let router: Router = /* ... build router ... */;
-    let request: Request = /* ... parse request ... */;
-    let result: CallResult = router.call(request).await;
+    let rpc_request: RpcRequest = /* ... parse request value ... */.try_into()?;
+    let result: CallResult = router.call(rpc_request).await;
     ```
 
 -   **`RouterBuilder`**:
@@ -81,7 +82,7 @@ Here are the central types and traits you'll interact with:
              ResourceType2: FromResources,
              ParamsType: IntoParams,
              ReturnValue: Serialize,
-             AppError: IntoHandlerError,
+             AppError: IntoHandlerError + Send + Sync + 'static, // Note: AppError needs Send + Sync + 'static
         {
             // ... logic ...
         }
@@ -90,7 +91,7 @@ Here are the central types and traits you'll interact with:
     -   The `resource` arguments are resolved from the `Router`'s resources or call-specific resources.
     -   The optional `params` argument is deserialized from the request's `params` field.
     -   The `Result`'s `Ok` value must be `serde::Serialize`.
-    -   The `Result`'s `Err` value must implement `IntoHandlerError`.
+    -   The `Result`'s `Err` value must implement `IntoHandlerError` and be `Send + Sync + 'static`.
 
 -   **`Resources`**:
     -   A type map holding instances of shared state/dependencies.
@@ -122,10 +123,11 @@ let call_resources = Resources::builder()
 -   **`IntoParams` trait & `#[derive(RpcParams)]`**:
     -   Trait allowing a type to be deserialized from the request's `params` field (`Option<serde_json::Value>`).
     -   Implement manually or derive using `#[derive(Deserialize, RpcParams)]`.
-    -   The `#[derive(RpcParams)]` automatically implements `IntoParams` using `serde::Deserialize`. It requires the `params` field to be present in the request and the type must be `DeserializeOwned + Send`.
+    -   The `#[derive(RpcParams)]` automatically implements `IntoParams` using `serde::Deserialize`. It requires the `params` field to be present in the request (unless the type implements `IntoDefaultRpcParams`) and the type must be `DeserializeOwned + Send`.
 
     ```rust
     use serde::Deserialize;
+    use rpc_router::RpcParams; // Import the derive macro
 
     // Using derive (recommended)
     #[derive(Deserialize, RpcParams)]
@@ -147,6 +149,7 @@ let call_resources = Resources::builder()
 
     ```rust
     use thiserror::Error; // Example using thiserror
+    use rpc_router::RpcHandlerError; // Import the derive macro
 
     // Using derive (recommended)
     #[derive(Debug, Error, RpcHandlerError)]
@@ -160,8 +163,11 @@ let call_resources = Resources::builder()
     }
 
     // Manual implementation (less common)
+    #[derive(Debug)] // Debug is needed for HandlerError wrapper
     struct LegacyError(String);
-    impl std::fmt::Debug for LegacyError { /* ... */ }
+    impl std::fmt::Display for LegacyError { fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Legacy: {}", self.0) } }
+    impl std::error::Error for LegacyError {}
+    // Manual impl requires Send + Sync + 'static
     impl IntoHandlerError for LegacyError {}
     ```
 
@@ -169,29 +175,32 @@ let call_resources = Resources::builder()
     -   An opaque wrapper around your application error (`AppError`). It's part of `rpc_router::Error::Handler`.
     -   Provides methods like `.get::<AppError>()` or `.remove::<AppError>()` to attempt to downcast and retrieve the original error.
 
--   **`Request`**:
-    -   Represents a parsed JSON-RPC request (`{ "jsonrpc": "2.0", "id": ..., "method": ..., "params": ... }`).
+-   **`RpcRequest`**:
+    -   Represents a parsed and validated JSON-RPC 2.0 request (`{ "jsonrpc": "2.0", "id": ..., "method": ..., "params": ... }`).
     -   Contains `id: RpcId`, `method: String`, `params: Option<Value>`.
-    -   Typically created via `serde_json::from_value(value)?.try_into()?` or `Request::from_value(value)?`. The `from_value`/`try_into` methods perform JSON-RPC 2.0 validation, including parsing the `id` into an `RpcId`.
+    -   Typically created via `RpcRequest::from_value(value)?` or `value.try_into()?`. These methods perform JSON-RPC 2.0 validation (checking `jsonrpc: "2.0"`, presence/type of `method` and `id`) and parse the `id` into the type-safe `RpcId`. Fails with `RpcRequestParsingError`.
 
 -   **`RpcId`**:
     -   Enum representing a valid JSON-RPC ID: `String(Arc<str>)`, `Number(i64)`, or `Null`.
-    -   Ensures type safety and efficient cloning for request IDs.
+    -   Ensures type safety and efficient cloning for request IDs. Parsed from `Value` during `RpcRequest` creation.
 
 -   **`CallResponse` / `CallError`**:
     -   The `Result` type returned by `router.call(...)`, wrapping either success (`CallResponse`) or failure (`CallError`).
     -   **Important**: These are *not* the final JSON-RPC response/error objects. They contain the necessary information (`id: RpcId`, `method`, `value`/`error`) for you to construct the actual JSON-RPC response.
-    -   `CallResponse { id: RpcId, method, value }`: Contains the request ID, method name, and the serialized return value from the handler.
-    -   `CallError { id: RpcId, method, error: rpc_router::Error }`: Contains the request ID, method name, and the router/handler error.
+    -   `CallResponse { id: RpcId, method: String, value: Value }`: Contains the request ID, method name, and the serialized return value from the handler.
+    -   `CallError { id: RpcId, method: String, error: rpc_router::Error }`: Contains the request ID, method name, and the router/handler error.
 
 -   **`rpc_router::Error`**:
     -   The enum representing errors that can occur during routing or handler execution *within* the `rpc-router` library itself. Variants include:
         -   `MethodUnknown`: The requested method wasn't found.
         -   `ParamsParsing`: Failed to deserialize `params` into the handler's expected type.
-        -   `ParamsMissingButRequested`: The handler expected `params`, but none were provided.
-        -   `FromResources`: Failed to retrieve a requested resource (`FromResourcesError`).
+        -   `ParamsMissingButRequested`: The handler expected `params` (and type doesn't impl `IntoDefaultRpcParams`), but none were provided.
+        -   `FromResources(FromResourcesError)`: Failed to retrieve a requested resource.
         -   `HandlerResultSerialize`: Failed to serialize the handler's successful return value.
         -   `Handler(HandlerError)`: An error occurred within the handler itself (this wraps your `AppError`).
+
+-   **`RpcRequestParsingError`**:
+    - The enum representing errors during the parsing and validation of the initial JSON `Value` into an `RpcRequest`. Variants detail issues like missing/invalid `jsonrpc` version, missing/invalid `method`, or missing/invalid `id`.
 
 ## Usage Examples
 
@@ -199,21 +208,22 @@ let call_resources = Resources::builder()
 
 ```rust
 // file: examples/01-minimal.rs
-use rpc_router::{IntoParams, Request, Resources, Router, HandlerResult, RpcId}; // Added RpcId
+use rpc_router::{IntoParams, RpcRequest, Resources, Router, HandlerResult, RpcId, RpcParams, CallResult}; // Added RpcId, RpcParams, CallResult
 use serde::Deserialize;
 use serde_json::{json, Value};
 
 // Define parameters type (must impl IntoParams)
-#[derive(Deserialize)]
+// Using derive is simpler. RpcParams requires Deserialize.
+#[derive(Deserialize, RpcParams)]
 struct EchoParams {
     message: String,
 }
-impl IntoParams for EchoParams {} // Use default serde-based impl
 
 // Define the handler function
 // Takes no resources, only params. Returns Result<Value, HandlerError>
 // HandlerResult<T> is shorthand for Result<T, HandlerError>
 // We use HandlerError directly here for simplicity (no custom error).
+// The return type must be Serialize.
 async fn echo(params: EchoParams) -> HandlerResult<String> {
     Ok(format!("You sent: {}", params.message))
 }
@@ -228,18 +238,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a JSON-RPC request value
     let request_value = json!({
         "jsonrpc": "2.0",
-        "id": 1, // RpcId compatible ID
+        "id": 1, // RpcId compatible ID (Number)
         "method": "echo",
         "params": { "message": "Hello RPC!" }
     });
 
     // Parse the request (validates JSON-RPC structure and ID)
-    let rpc_request: Request = request_value.try_into()?;
+    let rpc_request: RpcRequest = request_value.try_into()?;
 
     // Execute the call (no specific resources needed for this call)
-    // We pass empty resources.
-    let call_resources = Resources::builder().build();
-    let call_result = router.call_with_resources(rpc_request, call_resources).await;
+    // The base router call uses its internal empty resources.
+    let call_result: CallResult = router.call(rpc_request).await;
 
     // Process the result
     match call_result {
@@ -248,9 +257,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Success Response:");
             println!("  ID: {} (type: {:?})", response.id, response.id); // Display RpcId
             println!("  Method: {}", response.method);
-            println!("  Value: {:?}", response.value);
+            println!("  Value: {}", response.value); // Value is already serialized JSON
             // You would typically serialize this into a JSON-RPC response
-            // E.g., json!({"jsonrpc": "2.0", "id": response.id.to_value(), "result": response.value})
+            // let final_response = json!({"jsonrpc": "2.0", "id": response.id.to_value(), "result": response.value});
+            // println!("  Final JSON: {}", final_response);
         }
         Err(call_error) => {
             // Error! call_error has { id: RpcId, method, error: rpc_router::Error }
@@ -274,7 +284,7 @@ This example demonstrates using shared resources and the derive macros for clean
 ```rust
 // file: examples/02-resources-derives.rs
 use rpc_router::{
-    FromResources, IntoParams, Request, Resources, Router, RpcParams, RpcResource, HandlerResult, RpcId // Added RpcId
+    FromResources, IntoParams, RpcRequest, Resources, Router, RpcParams, RpcResource, HandlerResult, RpcId, CallResult // Added RpcId, CallResult
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -333,12 +343,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "method": "greet",
         "params": { "name": "Alice" }
     });
-    let rpc_request1: Request = request_value1.try_into()?;
+    let rpc_request1: RpcRequest = request_value1.try_into()?;
 
     // Execute using the router's base resources
     println!("--- Call 1 (ID: {}) ---", rpc_request1.id);
     match router.call(rpc_request1).await {
-        Ok(res) => println!("Success: {:?}", res.value),
+        Ok(res) => println!("Success: {}", res.value),
         Err(err) => eprintln!("Error: {:?}", err.error),
     }
 
@@ -349,11 +359,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "method": "greet",
         "params": { "name": "Bob" }
     });
-    let rpc_request2: Request = request_value2.try_into()?;
+    let rpc_request2: RpcRequest = request_value2.try_into()?;
 
     println!("\n--- Call 2 (ID: {}) ---", rpc_request2.id);
     match router.call(rpc_request2).await {
-        Ok(res) => println!("Success: {:?}", res.value),
+        Ok(res) => println!("Success: {}", res.value),
         Err(err) => eprintln!("Error: {:?}", err.error),
     }
 
@@ -371,7 +381,7 @@ This demonstrates defining a custom application error and handling it.
 ```rust
 // file: examples/03-custom-errors.rs
 use rpc_router::{
-    FromResources, IntoHandlerError, IntoParams, Request, Resources, Router, RpcParams,
+    FromResources, IntoHandlerError, IntoParams, RpcRequest, Resources, Router, RpcParams,
     RpcResource, RpcHandlerError, RpcId // Note: RpcHandlerError derive, Added RpcId
 };
 use serde::{Deserialize, Serialize};
@@ -380,6 +390,7 @@ use thiserror::Error; // Using thiserror for concise error definition
 
 // --- Custom Application Error ---
 // Use #[derive(RpcHandlerError)] to automatically implement IntoHandlerError
+// It needs Debug + Send + Sync + 'static
 #[derive(Debug, Error, RpcHandlerError, Serialize)] // Serialize is optional, for potential logging
 pub enum TaskError {
     #[error("Task with ID {0} not found")]
@@ -416,6 +427,8 @@ struct CreateTaskParams {
 
 // --- Handler ---
 // Returns Result<i64, TaskError> - our custom error type
+// The Ok value (i64) must be Serialize.
+// The Err value (TaskError) must impl IntoHandlerError + Send + Sync + 'static.
 async fn create_task(
     task_store: TaskStore,
     params: CreateTaskParams,
@@ -447,17 +460,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "method": "create_task",
             "params": params
         });
-        let rpc_request: Request = request_value.try_into()?;
+        // Parsing the RpcRequest validates id type among other things
+        let rpc_request: RpcRequest = match request_value.try_into() {
+             Ok(req) => req,
+             Err(parse_err) => {
+                eprintln!("Failed to parse request: {:?}", parse_err);
+                continue;
+             }
+        };
 
         match router.call(rpc_request).await {
             Ok(response) => {
-                println!("Success: Request ID {}, New task ID = {:?}", response.id, response.value);
+                // response.id is RpcId
+                println!("Success: Request ID {}, New task ID = {}", response.id, response.value);
             }
             Err(call_error) => {
+                // call_error.id is RpcId
                 eprintln!("Error encountered for ID {}, method '{}'", call_error.id, call_error.method);
                 // Check if it's a handler error
                 if let rpc_router::Error::Handler(mut handler_error) = call_error.error {
                     // Try to extract our specific TaskError
+                    // remove() consumes the inner error
                     if let Some(task_error) = handler_error.remove::<TaskError>() {
                         eprintln!("  App Error Type: TaskError");
                         eprintln!("  App Error Value: {:?}", task_error);
@@ -469,8 +492,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     } else {
                         // It was a HandlerError, but not our TaskError type
+                        // We can still access the debug representation
                         eprintln!("  App Error Type: Unknown (within HandlerError)");
-                        eprintln!("  App Error Value: {:?}", handler_error);
+                        eprintln!("  App Error Value: {:?}", handler_error); // Uses HandlerError's Debug impl
                     }
                 } else {
                     // It was a router-level error (e.g., MethodNotFound, ParamsParsing)
@@ -482,7 +506,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
 ```
 
 ### 4. Router Builder Macro & Call-Specific Resources
@@ -490,8 +513,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 // file: examples/04-builder-macro-call-resources.rs
 use rpc_router::{
-    FromResources, IntoParams, Request, Resources, Router, RpcParams, RpcResource,
-    RpcHandlerError, router_builder, RpcId // Import the macro, Added RpcId
+    FromResources, IntoParams, RpcRequest, Resources, Router, RpcParams, RpcResource,
+    RpcHandlerError, router_builder, RpcId, IntoHandlerError // Import the macro, Added RpcId, IntoHandlerError
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -517,11 +540,13 @@ struct UserContext { user_id: i64, role: String }
 struct GetDataParams { key: String }
 
 // --- Handlers ---
+// Returns Result<Serialize, IntoHandlerError>
 async fn get_common_setting(config: CommonConfig) -> Result<String, MyError> {
     Ok(config.setting.clone())
 }
 
 // This handler requires both common and call-specific resources
+// Returns Result<Serialize, IntoHandlerError>
 async fn get_user_data(
     config: CommonConfig,
     user_ctx: UserContext, // Request the call-specific resource
@@ -550,17 +575,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Call 1: get_common_setting (uses only router resources) ---
     println!("--- Call 1: get_common_setting ---");
-    let req1: Request = json!({
+    let req1: RpcRequest = json!({
         "jsonrpc": "2.0", "id": "c1", "method": "get_common_setting"
     }).try_into()?;
     match router.call(req1).await {
-        Ok(res) => println!("Success (ID {}): {:?}", res.id, res.value),
+        Ok(res) => println!("Success (ID {}): {}", res.id, res.value),
         Err(err) => eprintln!("Error (ID {}): {:?}", err.id, err.error),
     }
 
     // --- Call 2: get_user_data (needs additional UserContext) ---
     println!("\n--- Call 2: get_user_data (as Admin) ---");
-    let req2: Request = json!({
+    let req2: RpcRequest = json!({
         "jsonrpc": "2.0", "id": "c2-admin", "method": "get_user_data", "params": {"key": "secret"}
     }).try_into()?;
 
@@ -571,13 +596,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Use call_with_resources to provide the UserContext
     match router.call_with_resources(req2, admin_resources).await {
-        Ok(res) => println!("Success (ID {}): {:?}", res.id, res.value),
+        Ok(res) => println!("Success (ID {}): {}", res.id, res.value),
         Err(err) => eprintln!("Error (ID {}): {:?}", err.id, err.error),
     }
 
     // --- Call 3: get_user_data (as User, requesting secret) ---
      println!("\n--- Call 3: get_user_data (as User, requesting secret) ---");
-    let req3: Request = json!({
+    let req3: RpcRequest = json!({
         "jsonrpc": "2.0", "id": "c3-user-secret", "method": "get_user_data", "params": {"key": "secret"}
     }).try_into()?;
 
@@ -586,7 +611,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     match router.call_with_resources(req3, user_resources).await {
-        Ok(res) => println!("Success (ID {}): {:?}", res.id, res.value), // Should not happen based on logic
+        Ok(res) => println!("Success (ID {}): {}", res.id, res.value), // Should not happen based on logic
         Err(err) => {
             eprintln!("Error (ID {}): {:?}", err.id, err.error);
              // We can extract the specific error here too if needed
@@ -600,10 +625,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
 ```
 
 ## Conclusion
 
-`rpc-router` provides a flexible and type-safe foundation for building JSON-RPC services in Rust. By leveraging traits (`FromResources`, `IntoParams`, `IntoHandlerError`) and derive macros (`RpcResource`, `RpcParams`, `RpcHandlerError`), you can define handlers, manage dependencies, and handle errors with minimal boilerplate, keeping your focus on the application logic. The separation between router/handler errors (`rpc_router::Error`, `HandlerError`) and application errors (`AppError`), along with the type-safe `RpcId`, allows for robust, structured error handling within the framework and easy access to your specific error types when needed.
-
+`rpc-router` provides a flexible and type-safe foundation for building JSON-RPC services in Rust. By leveraging traits (`FromResources`, `IntoParams`, `IntoHandlerError`) and derive macros (`RpcResource`, `RpcParams`, `RpcHandlerError`), you can define handlers, manage dependencies, and handle errors with minimal boilerplate, keeping your focus on the application logic. The separation between router/handler errors (`rpc_router::Error`, `HandlerError`) and application errors (`AppError`), along with the type-safe `RpcId` and validated `RpcRequest`, allows for robust, structured error handling within the framework and easy access to your specific error types when needed.
