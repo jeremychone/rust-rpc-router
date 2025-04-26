@@ -13,6 +13,17 @@ pub struct RpcRequest {
 }
 
 impl RpcRequest {
+	pub fn new(id: impl Into<RpcId>, method: impl Into<String>, params: Option<Value>) -> Self {
+		RpcRequest {
+			id: id.into(),
+			method: method.into(),
+			params,
+		}
+	}
+}
+
+/// Custom parser (probably need to be a deserializer)
+impl RpcRequest {
 	pub fn from_value(value: Value) -> Result<RpcRequest, RpcRequestParsingError> {
 		RpcRequest::from_value_with_checks(value, RpcRequestCheckFlags::ALL)
 	}
