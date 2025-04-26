@@ -1,10 +1,11 @@
 use crate::support::get_json_type;
 use crate::{RpcId, RpcRequestParsingError};
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Serializer};
 use serde_json::Value;
 
 /// The raw JSON-RPC request object, serving as the foundation for RPC routing.
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct RpcRequest {
 	pub id: RpcId,
 	pub method: String,
@@ -103,6 +104,38 @@ impl RpcRequest {
 		Ok(RpcRequest { id, method, params })
 	}
 }
+
+// region:    --- Serialize Custom
+
+impl serde::Serialize for RpcRequest {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		// Determine the number of fields: jsonrpc, id, method are always present. params is optional.
+		let mut field_count = 3;
+		if self.params.is_some() {
+			field_count += 1;
+		}
+
+		let mut state = serializer.serialize_struct("RpcRequest", field_count)?;
+
+		// Always add "jsonrpc": "2.0"
+		state.serialize_field("jsonrpc", "2.0")?;
+
+		state.serialize_field("id", &self.id)?;
+		state.serialize_field("method", &self.method)?;
+
+		// Serialize params only if it's Some
+		if let Some(params) = &self.params {
+			state.serialize_field("params", params)?;
+		}
+
+		state.end()
+	}
+}
+
+// endregion: --- Serialize Custom
 
 bitflags::bitflags! {
 	/// Represents a set of flags.
