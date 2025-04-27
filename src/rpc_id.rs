@@ -2,6 +2,7 @@ use crate::RpcRequestParsingError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Represents a JSON-RPC 2.0 Request ID, which can be a String, Number, or Null.
 /// Uses `Arc<str>` for strings to allow for efficient cloning, especially when the
@@ -12,6 +13,90 @@ pub enum RpcId {
 	Number(i64),
 	Null,
 }
+
+// region:    --- ID Constructors
+
+impl RpcId {
+	/// Generate a new ID given a scheme kind and encoding.
+	pub fn from_scheme(kind: IdSchemeKind, enc: IdSchemeEncoding) -> Self {
+		let s = enc.encode(kind.generate());
+		RpcId::String(Arc::from(s))
+	}
+
+	// region:    --- Uuid Convenient Constructors
+
+	pub fn new_uuid_v4() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV4, IdSchemeEncoding::Standard)
+	}
+	pub fn new_uuid_v4_base64() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV4, IdSchemeEncoding::Base64)
+	}
+	pub fn new_uuid_v4_base64url() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV4, IdSchemeEncoding::Base64UrlNoPad)
+	}
+	pub fn new_uuid_v4_base58() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV4, IdSchemeEncoding::Base58)
+	}
+
+	pub fn new_uuid_v7() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV7, IdSchemeEncoding::Standard)
+	}
+	pub fn new_uuid_v7_base64() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV7, IdSchemeEncoding::Base64)
+	}
+	pub fn new_uuid_v7_base64url() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV7, IdSchemeEncoding::Base64UrlNoPad)
+	}
+	pub fn new_uuid_v7_base58() -> Self {
+		Self::from_scheme(IdSchemeKind::UuidV7, IdSchemeEncoding::Base58)
+	}
+
+	// endregion: --- Uuid Convenient Constructors
+}
+
+/// Pick the ID scheme you want.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IdSchemeKind {
+	UuidV4,
+	UuidV7,
+	// Ulid, Snowflake, Nanoid, etc. can be added later
+}
+
+/// Pick your base-encoding:
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IdSchemeEncoding {
+	Standard,
+	Base64,
+	Base64UrlNoPad,
+	Base58,
+}
+
+impl IdSchemeKind {
+	fn generate(&self) -> Vec<u8> {
+		match self {
+			IdSchemeKind::UuidV4 => Uuid::new_v4().as_bytes().to_vec(),
+			IdSchemeKind::UuidV7 => Uuid::now_v7().as_bytes().to_vec(),
+			// Add other generators later...
+		}
+	}
+}
+
+impl IdSchemeEncoding {
+	/// Turn a byte slice into your desired string form.
+	fn encode(&self, bytes: Vec<u8>) -> String {
+		match self {
+			IdSchemeEncoding::Standard => {
+				// Assume bytes come from UUID; reparse to UUID for pretty string.
+				Uuid::from_slice(&bytes).map(|u| u.to_string()).unwrap_or_default()
+			}
+			IdSchemeEncoding::Base64 => data_encoding::BASE64.encode(&bytes),
+			IdSchemeEncoding::Base64UrlNoPad => data_encoding::BASE64URL_NOPAD.encode(&bytes),
+			IdSchemeEncoding::Base58 => bs58::encode(&bytes).into_string(),
+		}
+	}
+}
+
+// endregion: --- ID Constructors
 
 // region:    --- std Display
 
