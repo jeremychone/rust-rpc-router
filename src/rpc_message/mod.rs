@@ -1,11 +1,11 @@
-#![allow(clippy::module_inception)] // not publicly exposed
-
 // region:    --- Modules
 
+mod notification;
 mod request;
 mod rpc_request_parsing_error;
+mod support;
 
-// -- Flatten
+pub use notification::*;
 pub use request::*;
 pub use rpc_request_parsing_error::*;
 

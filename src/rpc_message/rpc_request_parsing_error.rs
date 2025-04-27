@@ -20,6 +20,10 @@ pub enum RpcRequestParsingError {
 		actual_type: String,
 	},
 
+	ParamsInvalidType {
+		actual_type: String,
+	},
+
 	VersionMissing {
 		id: Option<Value>, // Keep Value here as RpcId parsing might not have happened yet
 		method: Option<String>,
@@ -36,6 +40,11 @@ pub enum RpcRequestParsingError {
 	MethodInvalidType {
 		id: Option<Value>, // Keep Value here
 		method: Value,
+	},
+
+	NotificationHasId {
+		method: Option<String>,
+		id: Value,
 	},
 
 	MethodInvalid {

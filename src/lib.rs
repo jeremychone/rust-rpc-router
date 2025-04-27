@@ -35,7 +35,7 @@ mod params;
 mod resource;
 mod router;
 mod rpc_id;
-mod rpc_request;
+mod rpc_message;
 mod rpc_response; // Added rpc_response module
 
 // -- Flatten
@@ -45,7 +45,7 @@ pub use params::*;
 pub use resource::*;
 pub use router::*;
 pub use rpc_id::*;
-pub use rpc_request::*;
+pub use rpc_message::*;
 pub use rpc_response::*; // Export rpc_response types
 
 // -- Export proc macros
