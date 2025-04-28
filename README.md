@@ -2,9 +2,13 @@
 
 **WARNING**: The main branch is now a work in progress for the upcoming `v0.2.0` (see the [v0.1.1](https://github.com/jeremychone/rust-rpc-router/tree/v0.1.1) tag for the 0.1.x version).
 
+**v0.2.0-alpha.x** Will be released but will have API changes between them. The future `-rc.x` will be more stable. 
+
 Upcoming API changes for `v0.2.0`
 - `RpcId` - Now uses a concrete type for RpcId.
 - `RpcRequest` - The old `Request` is now renamed `RpcRequest`. The design is that raw JSON-RPC constructs are prefixed with `Rpc`.
+- `RpcNotification` - New type (Like `RpcRequest` but with no `.id` as per the spec).
+- `RpcResponse` - New type.
 
 ## Getting Started
 

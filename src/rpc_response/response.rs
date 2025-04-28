@@ -13,61 +13,69 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum RpcResponse {
 	/// Represents a successful JSON-RPC response.
-	Success {
-		/// The request ID this response corresponds to.
-		id: RpcId,
-
-		/// The result payload of the successful RPC call.
-		result: Value,
-	},
+	Success(RpcSuccessResponse),
 	/// Represents a JSON-RPC error response.
-	Error {
-		/// The request ID this response corresponds to. Can be `Null` if the request ID couldn't be determined.
-		id: RpcId,
+	Error(RpcErrorResponse),
+}
 
-		/// The error object containing details about the failure.
-		error: RpcError,
-	},
+/// Holds the components of a successful JSON-RPC response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RpcSuccessResponse {
+	/// The request ID this response corresponds to.
+	pub id: RpcId,
+
+	/// The result payload of the successful RPC call.
+	pub result: Value,
+}
+
+/// Holds the components of a JSON-RPC error response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RpcErrorResponse {
+	/// The request ID this response corresponds to. Can be `Null` if the request ID couldn't be determined.
+	pub id: RpcId,
+
+	/// The error object containing details about the failure.
+	pub error: RpcError,
 }
 
 // region:    --- Constructors
 
 impl RpcResponse {
 	pub fn from_success(id: RpcId, result: Value) -> Self {
-		Self::Success { id, result }
+		Self::Success(RpcSuccessResponse { id, result })
 	}
 
 	pub fn from_error(id: RpcId, error: RpcError) -> Self {
-		Self::Error { id, error }
+		Self::Error(RpcErrorResponse { id, error })
 	}
 }
 
 // endregion: --- Constructors
 
 // region:    --- Accessors
-#[allow(dead_code)] // Convenience accessors
+
 impl RpcResponse {
 	pub fn is_success(&self) -> bool {
-		matches!(self, RpcResponse::Success { .. })
+		matches!(self, RpcResponse::Success(_))
 	}
 
 	pub fn is_error(&self) -> bool {
-		matches!(self, RpcResponse::Error { .. })
+		matches!(self, RpcResponse::Error(_))
 	}
 
 	pub fn id(&self) -> &RpcId {
 		match self {
-			RpcResponse::Success { id, .. } => id,
-			RpcResponse::Error { id, .. } => id,
+			RpcResponse::Success(r) => &r.id,
+			RpcResponse::Error(r) => &r.id,
 		}
 	}
 
-	/// NOTE: Not sure about this aip, but might be good.
-	/// `RpcError` might need to implement Rust error trait/display.
-	pub fn into_parts(self) -> (RpcId, Result<Value, RpcError>) {
+	/// Consumes the response and returns its parts: the ID and a `Result` containing
+	/// either the success value or the error object.
+	pub fn into_parts(self) -> (RpcId, core::result::Result<Value, RpcError>) {
 		match self {
-			RpcResponse::Success { id, result } => (id, Ok(result)),
-			RpcResponse::Error { id, error } => (id, Err(error)),
+			RpcResponse::Success(r) => (r.id, Ok(r.result)),
+			RpcResponse::Error(r) => (r.id, Err(r.error)),
 		}
 	}
 }
@@ -77,11 +85,8 @@ impl RpcResponse {
 
 impl From<CallSuccess> for RpcResponse {
 	/// Converts a successful router `CallSuccess` into a JSON-RPC `RpcResponse::Success`.
-	fn from(call_response: CallSuccess) -> Self {
-		RpcResponse::Success {
-			id: call_response.id,
-			result: call_response.value,
-		}
+	fn from(call_success: CallSuccess) -> Self {
+		RpcResponse::from_success(call_success.id, call_success.value)
 	}
 }
 
@@ -89,10 +94,8 @@ impl From<CallError> for RpcResponse {
 	/// Converts a router `CallError` into a JSON-RPC `RpcResponse::Error`.
 	fn from(call_error: CallError) -> Self {
 		let id = call_error.id.clone(); // Clone id before moving call_error
-		RpcResponse::Error {
-			id,
-			error: RpcError::from(call_error), // Reuse From<CallError> for RpcError
-		}
+		let error = RpcError::from(call_error); // Reuse From<CallError> for RpcError
+		RpcResponse::from_error(id, error)
 	}
 }
 
@@ -101,7 +104,7 @@ impl From<CallResult> for RpcResponse {
 	/// into the appropriate JSON-RPC `RpcResponse`.
 	fn from(call_result: CallResult) -> Self {
 		match call_result {
-			Ok(call_response) => RpcResponse::from(call_response),
+			Ok(call_success) => RpcResponse::from(call_success),
 			Err(call_error) => RpcResponse::from(call_error),
 		}
 	}
@@ -120,11 +123,11 @@ impl Serialize for RpcResponse {
 		map.serialize_entry("jsonrpc", "2.0")?;
 
 		match self {
-			RpcResponse::Success { id, result } => {
+			RpcResponse::Success(RpcSuccessResponse { id, result }) => {
 				map.serialize_entry("id", id)?;
 				map.serialize_entry("result", result)?;
 			}
-			RpcResponse::Error { id, error } => {
+			RpcResponse::Error(RpcErrorResponse { id, error }) => {
 				map.serialize_entry("id", id)?;
 				map.serialize_entry("error", error)?;
 			}
@@ -154,7 +157,7 @@ impl<'de> Deserialize<'de> for RpcResponse {
 			{
 				let mut version: Option<String> = None;
 				let mut id_val: Option<Value> = None;
-				let mut result: Option<Value> = None;
+				let mut result_val: Option<Value> = None;
 				let mut error_val: Option<Value> = None;
 
 				while let Some(key) = map.next_key::<String>()? {
@@ -173,10 +176,10 @@ impl<'de> Deserialize<'de> for RpcResponse {
 							id_val = Some(map.next_value()?);
 						}
 						"result" => {
-							if result.is_some() {
+							if result_val.is_some() {
 								return Err(serde::de::Error::duplicate_field("result"));
 							}
-							result = Some(map.next_value()?);
+							result_val = Some(map.next_value()?);
 						}
 						"error" => {
 							if error_val.is_some() {
@@ -220,13 +223,13 @@ impl<'de> Deserialize<'de> for RpcResponse {
 				};
 
 				// Determine if Success or Error
-				match (result, error_val) {
-					(Some(result), None) => Ok(RpcResponse::Success { id, result }),
+				match (result_val, error_val) {
+					(Some(result), None) => Ok(RpcResponse::Success(RpcSuccessResponse { id, result })),
 					(None, Some(error_value)) => {
 						// Now parse the error object from the Value
 						let error: RpcError = serde_json::from_value(error_value)
 							.map_err(|e| serde::de::Error::custom(RpcResponseParsingError::InvalidErrorObject(e)))?;
-						Ok(RpcResponse::Error { id, error })
+						Ok(RpcResponse::Error(RpcErrorResponse { id, error }))
 					}
 					(Some(_), Some(_)) => Err(serde::de::Error::custom(RpcResponseParsingError::BothResultAndError {
 						id: id.clone(),
@@ -268,10 +271,7 @@ mod tests {
 		// -- Setup & Fixtures
 		let id = RpcId::Number(1);
 		let result_val = json!({"data": "ok"});
-		let response = RpcResponse::Success {
-			id: id.clone(),
-			result: result_val.clone(),
-		};
+		let response = RpcResponse::from_success(id.clone(), result_val.clone());
 		let expected_json = json!({
 			"jsonrpc": "2.0",
 			"id": 1,
@@ -308,10 +308,7 @@ mod tests {
 			message: "Method not found".to_string(),
 			data: Some(json!("method_name")),
 		};
-		let response = RpcResponse::Error {
-			id: id.clone(),
-			error: rpc_error.clone(),
-		};
+		let response = RpcResponse::from_error(id.clone(), rpc_error.clone());
 		let expected_json = json!({
 			"jsonrpc": "2.0",
 			"id": "req-abc",
@@ -352,10 +349,7 @@ mod tests {
 			message: "Parse error".to_string(),
 			data: None, // No data
 		};
-		let response = RpcResponse::Error {
-			id: id.clone(),
-			error: rpc_error.clone(),
-		};
+		let response = RpcResponse::from_error(id.clone(), rpc_error.clone());
 		let expected_json = json!({
 			"jsonrpc": "2.0",
 			"id": null,
@@ -419,24 +413,24 @@ mod tests {
 
 	// region:    --- From Router Call Tests
 	#[test]
-	fn test_from_call_response() -> TestResult<()> {
+	fn test_from_call_success() -> TestResult<()> {
 		// -- Setup & Fixtures
-		let call_response = CallSuccess {
+		let call_success = CallSuccess {
 			id: RpcId::Number(101),
 			method: "test_method".to_string(),
 			value: json!({"success": true}),
 		};
 
 		// -- Exec
-		let rpc_response = RpcResponse::from(call_response);
+		let rpc_response = RpcResponse::from(call_success);
 
 		// -- Check
 		match rpc_response {
-			RpcResponse::Success { id, result } => {
+			RpcResponse::Success(RpcSuccessResponse { id, result }) => {
 				assert_eq!(id, RpcId::Number(101));
 				assert_eq!(result, json!({"success": true}));
 			}
-			RpcResponse::Error { .. } => panic!("Expected RpcResponse::Success"),
+			RpcResponse::Error(_) => panic!("Expected RpcResponse::Success"),
 		}
 		Ok(())
 	}
@@ -451,13 +445,13 @@ mod tests {
 
 		// -- Check
 		match rpc_response {
-			RpcResponse::Error { id, error } => {
+			RpcResponse::Error(RpcErrorResponse { id, error }) => {
 				assert_eq!(id, RpcId::Number(102));
 				assert_eq!(error.code, RpcError::CODE_METHOD_NOT_FOUND);
 				assert_eq!(error.message, "Method not found");
 				assert!(error.data.is_some()); // contains RouterError::MethodUnknown display
 			}
-			RpcResponse::Success { .. } => panic!("Expected RpcResponse::Error"),
+			RpcResponse::Success(_) => panic!("Expected RpcResponse::Error"),
 		}
 		Ok(())
 	}
@@ -476,11 +470,11 @@ mod tests {
 
 		// -- Check
 		match rpc_response {
-			RpcResponse::Success { id, result } => {
+			RpcResponse::Success(RpcSuccessResponse { id, result }) => {
 				assert_eq!(id, RpcId::Number(103));
 				assert_eq!(result, json!("ok_data"));
 			}
-			RpcResponse::Error { .. } => panic!("Expected RpcResponse::Success"),
+			RpcResponse::Error(_) => panic!("Expected RpcResponse::Success"),
 		}
 		Ok(())
 	}
@@ -499,13 +493,13 @@ mod tests {
 
 		// -- Check
 		match rpc_response {
-			RpcResponse::Error { id, error } => {
+			RpcResponse::Error(RpcErrorResponse { id, error }) => {
 				assert_eq!(id, RpcId::String("err-104".into()));
 				assert_eq!(error.code, RpcError::CODE_INVALID_PARAMS);
 				assert_eq!(error.message, "Invalid params");
 				assert!(error.data.is_some()); // contains RouterError::ParamsMissingButRequested display
 			}
-			RpcResponse::Success { .. } => panic!("Expected RpcResponse::Error"),
+			RpcResponse::Success(_) => panic!("Expected RpcResponse::Error"),
 		}
 		Ok(())
 	}
