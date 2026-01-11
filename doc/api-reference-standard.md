@@ -2,6 +2,17 @@
 
 This document provides a comprehensive overview of all public APIs exposed by the `rpc-router` crate.
 
+## Key Features
+
+- **Type-Safe Handlers:** Define RPC handlers as regular async Rust functions with typed parameters derived from request resources and JSON-RPC parameters.
+- **Resource Management:** Inject shared resources (like database connections, configuration, etc.) into handlers using the `FromResources` trait.
+- **Parameter Handling:** Automatically deserialize JSON-RPC `params` into Rust types using the `IntoParams` trait. Supports optional parameters and default values via `IntoDefaultRpcParams`.
+- **Composable Routers:** Combine multiple routers using `RouterBuilder::extend` for modular application design.
+- **Error Handling:** Robust error handling with distinct types for routing errors (`rpc_router::Error`) and handler-specific errors (`HandlerError`), allowing applications to retain and inspect original error types.
+- **JSON-RPC Response Types:** Provides `RpcResponse`, `RpcError`, and `RpcResponseParsingError` for representing and parsing standard JSON-RPC 2.0 responses, with direct conversion from router `CallResult`.
+- **Ergonomic Macros (Optional):** Includes helper macros like `router_builder!` and `resources_builder!` for concise router and resource setup.
+- **Minimal Dependencies:** Core library has minimal dependencies (primarily `serde`, `serde_json`, and `futures`).
+
 ## Core Types
 
 -   **`Router`**: The central component that holds RPC method routes and associated handlers. It's typically created using `RouterBuilder` and wrapped in an `Arc` for efficient sharing.
@@ -332,10 +343,84 @@ These types represent the final JSON-RPC 2.0 response sent back to the client. T
 -   **Serialization/Deserialization**: `RpcResponse` implements `Serialize` and `Deserialize` according to the JSON-RPC 2.0 specification, including strict validation during deserialization (e.g., checks for `"jsonrpc": "2.0"`, presence of `id`, mutual exclusion of `result` and `error`).
 -   **`RpcResponseParsingError`**: Enum detailing errors during `RpcResponse` deserialization (e.g., `InvalidJsonRpcVersion`, `BothResultAndError`, `MissingId`, `InvalidErrorObject`).
 
+
+## Usage Example
+
+```rust
+use rpc_router::{resources_builder, router_builder, FromResources, IntoParams, HandlerResult, RpcRequest, RpcResource, RpcParams, RpcResponse};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+// --- Define Resources
+#[derive(Clone, RpcResource)]
+struct AppState {
+    version: String,
+}
+
+#[derive(Clone, RpcResource)]
+struct DbPool {
+    url: String, 
+}
+
+// --- Define Params
+#[derive(Deserialize, Serialize, RpcParams)]
+struct HelloParams {
+    name: String,
+}
+
+// --- Define Custom Error
+#[derive(Debug, thiserror::Error, rpc_router::RpcHandlerError)]
+enum MyHandlerError {
+    #[error("Something went wrong: {0}")]
+    SpecificError(String),
+}
+
+// --- Define RPC Handlers
+async fn hello(state: AppState, params: HelloParams) -> HandlerResult<String> {
+    Ok(format!("Hello {}, from app version {}!", params.name, state.version))
+}
+
+async fn get_db_url(db: DbPool) -> HandlerResult<String> {
+    Ok(db.url.clone())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // --- Create Resources
+    let resources = resources_builder![
+        AppState { version: "1.0".to_string() },
+        DbPool { url: "dummy-db-url".to_string() }
+    ].build();
+
+    // --- Create Router
+    let router = router_builder![
+        handlers: [hello, get_db_url]
+    ].build();
+
+    // --- Simulate an RPC Call
+    let request_json = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "hello",
+        "params": {"name": "World"}
+    });
+    let rpc_request = RpcRequest::from_value(request_json)?;
+
+    // Execute the call
+    let call_result = router.call_with_resources(rpc_request, resources).await;
+
+    // --- Process the Result
+    let rpc_response = RpcResponse::from(call_result);
+    println!("Response: {}", serde_json::to_string_pretty(&rpc_response)?);
+
+    Ok(())
+}
+```
+
 ## Utility Macros
 
--   **`router_builder!(...)`**: Creates a `RouterBuilder` (see Router Configuration).
--   **`resources_builder!(...)`**: Creates a `ResourcesBuilder` (see Resources Management).
--   **`#[derive(RpcParams)]`**: Implements `IntoParams`.
--   **`#[derive(RpcResource)]`**: Implements `FromResources`.
--   **`#[derive(RpcHandlerError)]`**: Implements error boilerplate for handler errors (`IntoHandlerError`).
+- **`router_builder!(...)`**: Creates a `RouterBuilder` (see Router Configuration).
+- **`resources_builder!(...)`**: Creates a `ResourcesBuilder` (see Resources Management).
+- **`#[derive(RpcParams)]`**: Implements `IntoParams`.
+- **`#[derive(RpcResource)]`**: Implements `FromResources`.
+- **`#[derive(RpcHandlerError)]`**: Implements error boilerplate for handler errors (`IntoHandlerError`).
