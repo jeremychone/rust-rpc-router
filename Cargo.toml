@@ -1,6 +1,6 @@
 [package]
 name = "rpc-router"
-version = "0.2.0"
+version = "0.2.1-WIP"
 authors = ["Jeremy Chone <jeremy.chone@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
