@@ -1,6 +1,6 @@
 [package]
 name = "rpc-router-macros"
-version = "0.2.0-alpha.1"
+version = "0.2.0"
 authors = ["jeremy.chone@gmail.com"]
 edition = "2024"
 license = "MIT OR Apache-2.0"

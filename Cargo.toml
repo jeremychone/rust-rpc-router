@@ -1,6 +1,6 @@
 [package]
 name = "rpc-router"
-version = "0.2.0-alpha.2-wip"
+version = "0.2.0"
 authors = ["Jeremy Chone <jeremy.chone@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -40,7 +40,7 @@ uuid = {version = "1", features = ["v4", "v7", "fast-rng"]}
 data-encoding = "2.5" # base64, base64url, base32hex
 bs58 = "0.5"
 # -- Features
-rpc-router-macros = { version="=0.2.0-alpha.1", path = "rpc-router-macros", optional=true}
+rpc-router-macros = { version="=0.2.0", path = "rpc-router-macros", optional=true}
 # -- Others
 derive_more = {version = "2", features = ["from", "display"] }
 bitflags = "2.9.0"
