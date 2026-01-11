@@ -1,8 +1,19 @@
 `.` minor | `*` Major | `+` Addition | `^` improvement | `!` Change
 
-> For the `0.1.x` releases, there may be some changes to types or API naming. Therefore, the version should be locked to the latest version used, for example, `=0.1.0`. I will try to keep changes to a minimum, if any, and document them in the future [CHANGELOG](CHANGELOG.md).
->
-> Once `0.2.0` is released, I will adhere more strictly to the semantic versioning methodology.
+## 2026-01-02 - `0.2.0`
+
+- `!` API RENAME - CallSuccess now (from CallResponse)
+- `!` API RENAME - Request is now RpcRequest (because it represents core json-rpc construct)
+- `!` RpcId - Refactor Rpc Id to be its own type
+- `+` RpcResponse - Add RpcResponse construct
+- `+` RpcRequest - added from_value_with_checks to allow to skip version and/or id checks
+- `^` router - implement FromResources for Router
+- `^` RpcRequest - add from_value_with_checks
+- `^` export the RpcHandlerWrapperTrait
+- `^` add RpcRequest new
+- `^` RpcRequest - add custom serializer
+- `.` doc - add doc/*.md documentations
+- `.` doc - update doc/ markdowns
 
 ## 2024-03-14 - `0.1.3`
 
